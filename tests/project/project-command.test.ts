@@ -27,7 +27,7 @@ function createProjectFetch() {
           count: 1,
           results: [
             {
-              id: "11111111-1111-1111-1111-111111111111",
+              id: "11111111-1111-4111-8111-111111111111",
               identifier: "PROJECT",
               name: "Example Project"
             }
@@ -102,7 +102,7 @@ describe("workspace and project commands", () => {
       instances: Record<string, { defaultProjectId: string }>;
     };
 
-    expect(config.instances.default.defaultProjectId).toBe("11111111-1111-1111-1111-111111111111");
+    expect(config.instances.default.defaultProjectId).toBe("11111111-1111-4111-8111-111111111111");
   });
 
   it("lists projects for the active workspace as JSON", async () => {
