@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "bin": {
-    "plane": "./dist/bin/plane.js"
+    "plane": "./dist/src/bin/plane.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
