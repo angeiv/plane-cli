@@ -1,7 +1,10 @@
 import { ConfigStore } from "../config/config-store.js";
 import { CliError } from "../plane/errors.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
-import type { PaginatedResponse, PlaneWorkItem } from "../plane/types.js";
+import type { PaginatedResponse, PlaneComment, PlaneMember, PlaneState, PlaneWorkItem } from "../plane/types.js";
+import { CommentsApi } from "../plane/comments-api.js";
+import { MembersApi } from "../plane/members-api.js";
+import { StatesApi } from "../plane/states-api.js";
 import { WorkItemsApi } from "../plane/work-items-api.js";
 
 import { ContextService } from "./context-service.js";
@@ -15,6 +18,14 @@ export interface WorkItemContextOverrides {
 export interface ListWorkItemsInput extends WorkItemContextOverrides {
   cursor?: string;
   limit?: number;
+}
+
+export interface MutateWorkItemInput extends WorkItemContextOverrides {
+  assignees?: string[];
+  description?: string;
+  name?: string;
+  priority?: string;
+  state?: string;
 }
 
 export class WorkItemService {
@@ -45,7 +56,42 @@ export class WorkItemService {
     return api.retrieve(workspaceSlug, projectId, workItemId);
   }
 
-  private async resolveContext(overrides: WorkItemContextOverrides): Promise<{ api: WorkItemsApi; projectId: string; workspaceSlug: string }> {
+  async create(input: MutateWorkItemInput & { name: string }): Promise<PlaneWorkItem> {
+    const { api, client, workspaceSlug, projectId } = await this.resolveContext(input);
+    const payload = await this.buildMutationPayload(client, workspaceSlug, projectId, input);
+
+    return api.create(workspaceSlug, projectId, payload);
+  }
+
+  async update(workItemRef: string, input: MutateWorkItemInput): Promise<PlaneWorkItem> {
+    const { api, client, workspaceSlug, projectId } = await this.resolveContext(input);
+    const workItemId = await this.resolveWorkItemRef(api, workItemRef, workspaceSlug, projectId);
+    const payload = await this.buildMutationPayload(client, workspaceSlug, projectId, input);
+
+    if (Object.keys(payload).length === 0) {
+      throw new CliError("EMPTY_UPDATE", "No update fields were provided.");
+    }
+
+    return api.update(workspaceSlug, projectId, workItemId, payload);
+  }
+
+  async comment(workItemRef: string, body: string, overrides: WorkItemContextOverrides = {}): Promise<PlaneComment> {
+    const { api, client, workspaceSlug, projectId } = await this.resolveContext(overrides);
+    const workItemId = await this.resolveWorkItemRef(api, workItemRef, workspaceSlug, projectId);
+    const commentsApi = new CommentsApi(client);
+
+    return commentsApi.create(workspaceSlug, projectId, workItemId, this.ensureHtmlParagraph(body));
+  }
+
+  async delete(workItemRef: string, overrides: WorkItemContextOverrides = {}): Promise<void> {
+    const { api, workspaceSlug, projectId } = await this.resolveContext(overrides);
+    const workItemId = await this.resolveWorkItemRef(api, workItemRef, workspaceSlug, projectId);
+    await api.delete(workspaceSlug, projectId, workItemId);
+  }
+
+  private async resolveContext(
+    overrides: WorkItemContextOverrides,
+  ): Promise<{ api: WorkItemsApi; client: PlaneHttpClient; projectId: string; workspaceSlug: string }> {
     const instance = await this.contextService.getCurrentInstance();
     const workspaceSlug = overrides.workspaceSlug ?? instance.workspaceSlug;
 
@@ -57,14 +103,15 @@ export class WorkItemService {
       ? await this.projectService.resolveProjectRef(overrides.projectRef)
       : await this.contextService.requireProjectId();
 
+    const client = new PlaneHttpClient({
+      apiKey: instance.apiKey,
+      baseUrl: instance.baseUrl,
+      fetchImpl: this.fetchImpl,
+    });
+
     return {
-      api: new WorkItemsApi(
-        new PlaneHttpClient({
-          apiKey: instance.apiKey,
-          baseUrl: instance.baseUrl,
-          fetchImpl: this.fetchImpl,
-        }),
-      ),
+      api: new WorkItemsApi(client),
+      client,
       workspaceSlug,
       projectId,
     };
@@ -94,5 +141,87 @@ export class WorkItemService {
     }
 
     return match.id;
+  }
+
+  private async buildMutationPayload(
+    client: PlaneHttpClient,
+    workspaceSlug: string,
+    projectId: string,
+    input: MutateWorkItemInput,
+  ): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = {};
+
+    if (input.name) {
+      payload.name = input.name;
+    }
+
+    if (input.priority) {
+      payload.priority = input.priority;
+    }
+
+    if (input.description) {
+      payload.description_html = this.ensureHtmlParagraph(input.description);
+    }
+
+    if (input.state) {
+      payload.state = await this.resolveState(client, workspaceSlug, projectId, input.state);
+    }
+
+    if (input.assignees && input.assignees.length > 0) {
+      payload.assignees = await this.resolveAssignees(client, workspaceSlug, projectId, input.assignees);
+    }
+
+    return payload;
+  }
+
+  private ensureHtmlParagraph(text: string): string {
+    return text.trim().startsWith("<") ? text.trim() : `<p>${text.trim()}</p>`;
+  }
+
+  private async resolveState(client: PlaneHttpClient, workspaceSlug: string, projectId: string, stateRef: string): Promise<string> {
+    if (this.looksLikeUuid(stateRef)) {
+      return stateRef;
+    }
+
+    const states = await new StatesApi(client).list(workspaceSlug, projectId);
+    const state = this.findByName(states.results, stateRef);
+
+    if (!state) {
+      throw new CliError("STATE_NOT_FOUND", `State '${stateRef}' was not found in the active project.`);
+    }
+
+    return state.id;
+  }
+
+  private async resolveAssignees(
+    client: PlaneHttpClient,
+    workspaceSlug: string,
+    projectId: string,
+    assigneeRefs: string[],
+  ): Promise<string[]> {
+    const projectMembers = await new MembersApi(client).listProjectMembers(workspaceSlug, projectId);
+
+    return assigneeRefs.map((ref) => {
+      if (this.looksLikeUuid(ref)) {
+        return ref;
+      }
+
+      const member = projectMembers.find((item) => item.email === ref || item.display_name === ref);
+
+      if (!member) {
+        throw new CliError("ASSIGNEE_NOT_FOUND", `Assignee '${ref}' was not found in the active project.`);
+      }
+
+      return member.id;
+    });
+  }
+
+  private findByName<T extends PlaneState | PlaneMember>(items: T[], ref: string): T | undefined {
+    const normalizedRef = ref.toLowerCase();
+    return items.find((item) => "name" in item && item.name?.toLowerCase() === normalizedRef);
+  }
+
+  private looksLikeUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 }

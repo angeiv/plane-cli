@@ -7,6 +7,14 @@ export interface ListWorkItemsParams {
   perPage?: number;
 }
 
+export interface UpsertWorkItemPayload {
+  assignees?: string[];
+  description_html?: string;
+  name?: string;
+  priority?: string;
+  state?: string;
+}
+
 export class WorkItemsApi {
   constructor(private readonly client: PlaneHttpClient) {}
 
@@ -30,6 +38,40 @@ export class WorkItemsApi {
   async retrieve(workspaceSlug: string, projectId: string, workItemId: string): Promise<PlaneWorkItem> {
     return this.client.requestJson<PlaneWorkItem>(
       `/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/work-items/${workItemId}/`,
+    );
+  }
+
+  async create(workspaceSlug: string, projectId: string, payload: UpsertWorkItemPayload): Promise<PlaneWorkItem> {
+    return this.client.requestJson<PlaneWorkItem>(
+      `/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/work-items/`,
+      {
+        body: JSON.stringify(payload),
+        method: "POST",
+      },
+    );
+  }
+
+  async update(
+    workspaceSlug: string,
+    projectId: string,
+    workItemId: string,
+    payload: UpsertWorkItemPayload,
+  ): Promise<PlaneWorkItem> {
+    return this.client.requestJson<PlaneWorkItem>(
+      `/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/work-items/${workItemId}/`,
+      {
+        body: JSON.stringify(payload),
+        method: "PATCH",
+      },
+    );
+  }
+
+  async delete(workspaceSlug: string, projectId: string, workItemId: string): Promise<void> {
+    await this.client.requestJson<null>(
+      `/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/work-items/${workItemId}/`,
+      {
+        method: "DELETE",
+      },
     );
   }
 }
