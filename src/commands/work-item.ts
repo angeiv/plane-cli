@@ -2,6 +2,7 @@ import { Command } from "commander";
 
 import { writeError } from "../output/errors.js";
 import { writeJson } from "../output/json.js";
+import { formatTable } from "../output/table.js";
 import { ConfigStore } from "../config/config-store.js";
 import type { CliRuntime } from "../runtime.js";
 import { WorkItemService } from "../services/work-item-service.js";
@@ -36,7 +37,16 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
           return;
         }
 
-        runtime.stdout.write(`${result.results.map((item) => `${item.sequence_id ?? "?"}\t${item.name}`).join("\n")}\n`);
+        runtime.stdout.write(
+          formatTable(
+            ["SEQ", "NAME", "PRIORITY"],
+            result.results.map((item) => [
+              String(item.sequence_id ?? "?"),
+              item.name,
+              item.priority ?? "none",
+            ]),
+          ),
+        );
       } catch (error) {
         writeError(runtime.stderr, error);
         throw error;
@@ -62,7 +72,17 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
           return;
         }
 
-        runtime.stdout.write(`${result.sequence_id ?? "?"}\t${result.name}\n`);
+        runtime.stdout.write(
+          formatTable(
+            ["FIELD", "VALUE"],
+            [
+              ["id", result.id],
+              ["sequence", String(result.sequence_id ?? "?")],
+              ["name", result.name],
+              ["priority", result.priority ?? "none"],
+            ],
+          ),
+        );
       } catch (error) {
         writeError(runtime.stderr, error);
         throw error;

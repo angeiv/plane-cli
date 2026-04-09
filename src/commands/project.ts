@@ -2,6 +2,7 @@ import { Command } from "commander";
 
 import { writeError } from "../output/errors.js";
 import { writeJson } from "../output/json.js";
+import { formatTable } from "../output/table.js";
 import { ConfigStore } from "../config/config-store.js";
 import type { CliRuntime } from "../runtime.js";
 import { ProjectService } from "../services/project-service.js";
@@ -23,7 +24,12 @@ export function createProjectCommand(runtime: CliRuntime): Command {
           return;
         }
 
-        runtime.stdout.write(`${projects.map((item) => `${item.identifier ?? item.id}\t${item.name}`).join("\n")}\n`);
+        runtime.stdout.write(
+          formatTable(
+            ["IDENTIFIER", "PROJECT"],
+            projects.map((item) => [item.identifier ?? item.id, item.name]),
+          ),
+        );
       } catch (error) {
         writeError(runtime.stderr, error);
         throw error;
