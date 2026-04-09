@@ -96,6 +96,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
     .option("--priority <priority>", "Priority value")
     .option("--state <state>", "State name or UUID")
     .option("--assignee <value>", "Assignee email, display name, or UUID", collectValues, [])
+    .option("--label <value>", "Label name or UUID", collectValues, [])
     .option("--description <text>", "Description text")
     .option("--workspace <slug>", "Override workspace slug")
     .option("--project <id-or-key>", "Override project UUID or key")
@@ -105,6 +106,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
         const result = await workItems.create({
           assignees: options.assignee,
           description: options.description,
+          labels: options.label,
           name: options.name,
           priority: options.priority,
           projectRef: options.project,
@@ -132,6 +134,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
     .option("--priority <priority>", "Priority value")
     .option("--state <state>", "State name or UUID")
     .option("--assignee <value>", "Assignee email, display name, or UUID", collectValues, [])
+    .option("--label <value>", "Label name or UUID", collectValues, [])
     .option("--description <text>", "Description text")
     .option("--workspace <slug>", "Override workspace slug")
     .option("--project <id-or-key>", "Override project UUID or key")
@@ -141,6 +144,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
         const result = await workItems.update(ref, {
           assignees: options.assignee,
           description: options.description,
+          labels: options.label,
           name: options.name,
           priority: options.priority,
           projectRef: options.project,

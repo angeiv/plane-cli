@@ -10,6 +10,7 @@ export interface ListWorkItemsParams {
 export interface UpsertWorkItemPayload {
   assignees?: string[];
   description_html?: string;
+  labels?: string[];
   name?: string;
   priority?: string;
   state?: string;

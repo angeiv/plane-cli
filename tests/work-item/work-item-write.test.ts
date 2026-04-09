@@ -48,6 +48,21 @@ function createWorkItemWriteFetch() {
       );
     }
 
+    if (url.endsWith("/labels/")) {
+      return new Response(
+        JSON.stringify({
+          count: 1,
+          results: [
+            {
+              id: "label-bug",
+              name: "bug"
+            }
+          ]
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+
     if (url.includes("/work-items/?per_page=20")) {
       return new Response(
         JSON.stringify({
@@ -89,7 +104,8 @@ function createWorkItemWriteFetch() {
           name: body?.name ?? "Fix auth flow",
           priority: body?.priority ?? "high",
           state: body?.state ?? "state-progress",
-          assignees: body?.assignees ?? []
+          assignees: body?.assignees ?? [],
+          labels: body?.labels ?? []
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
@@ -213,5 +229,32 @@ describe("work-item write commands", () => {
     );
 
     expect(result.stdout).toContain('"comment_html": "<p>Temporary comment</p>"');
+  });
+
+  it("maps label names before updating a work item", async () => {
+    const fetchImpl = createWorkItemWriteFetch();
+
+    await runCli(
+      [
+        "auth",
+        "login",
+        "--base-url",
+        "https://plane.example.internal",
+        "--api-key",
+        "secret-token",
+        "--workspace",
+        "example-workspace",
+        "--project",
+        "11111111-1111-4111-8111-111111111111"
+      ],
+      { configDir, fetchImpl },
+    );
+
+    const result = await runCli(
+      ["work-item", "update", "7", "--label", "bug", "--json"],
+      { configDir, fetchImpl },
+    );
+
+    expect(result.stdout).toContain('"labels": [\n    "label-bug"\n  ]');
   });
 });

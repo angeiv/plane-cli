@@ -1,8 +1,9 @@
 import { ConfigStore } from "../config/config-store.js";
 import { CliError } from "../plane/errors.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
-import type { PaginatedResponse, PlaneComment, PlaneMember, PlaneState, PlaneWorkItem } from "../plane/types.js";
+import type { PaginatedResponse, PlaneComment, PlaneLabel, PlaneState, PlaneWorkItem } from "../plane/types.js";
 import { CommentsApi } from "../plane/comments-api.js";
+import { LabelsApi } from "../plane/labels-api.js";
 import { MembersApi } from "../plane/members-api.js";
 import { StatesApi } from "../plane/states-api.js";
 import { WorkItemsApi } from "../plane/work-items-api.js";
@@ -23,6 +24,7 @@ export interface ListWorkItemsInput extends WorkItemContextOverrides {
 export interface MutateWorkItemInput extends WorkItemContextOverrides {
   assignees?: string[];
   description?: string;
+  labels?: string[];
   name?: string;
   priority?: string;
   state?: string;
@@ -171,6 +173,10 @@ export class WorkItemService {
       payload.assignees = await this.resolveAssignees(client, workspaceSlug, projectId, input.assignees);
     }
 
+    if (input.labels && input.labels.length > 0) {
+      payload.labels = await this.resolveLabels(client, workspaceSlug, projectId, input.labels);
+    }
+
     return payload;
   }
 
@@ -216,9 +222,32 @@ export class WorkItemService {
     });
   }
 
-  private findByName<T extends PlaneState | PlaneMember>(items: T[], ref: string): T | undefined {
+  private async resolveLabels(
+    client: PlaneHttpClient,
+    workspaceSlug: string,
+    projectId: string,
+    labelRefs: string[],
+  ): Promise<string[]> {
+    const labels = await new LabelsApi(client).list(workspaceSlug, projectId);
+
+    return labelRefs.map((ref) => {
+      if (this.looksLikeUuid(ref)) {
+        return ref;
+      }
+
+      const label = this.findByName(labels.results, ref);
+
+      if (!label) {
+        throw new CliError("LABEL_NOT_FOUND", `Label '${ref}' was not found in the active project.`);
+      }
+
+      return label.id;
+    });
+  }
+
+  private findByName<T extends PlaneState | PlaneLabel>(items: T[], ref: string): T | undefined {
     const normalizedRef = ref.toLowerCase();
-    return items.find((item) => "name" in item && item.name?.toLowerCase() === normalizedRef);
+    return items.find((item) => item.name.toLowerCase() === normalizedRef);
   }
 
   private looksLikeUuid(value: string): boolean {

@@ -34,3 +34,8 @@ export interface PlaneComment {
   id: string;
   issue?: string | null;
 }
+
+export interface PlaneLabel {
+  id: string;
+  name: string;
+}
