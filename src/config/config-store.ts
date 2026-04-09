@@ -49,6 +49,31 @@ export class ConfigStore {
     return nextConfig;
   }
 
+  async patchCurrentInstance(partial: Partial<InstanceConfig>): Promise<PlaneCliConfig> {
+    const config = await this.load();
+    const currentInstance = config.currentInstance || "default";
+    const existingInstance = config.instances[currentInstance];
+
+    if (!existingInstance) {
+      throw new Error("Cannot patch the active instance before auth login has been configured.");
+    }
+
+    const nextConfig: PlaneCliConfig = {
+      currentInstance,
+      instances: {
+        ...config.instances,
+        [currentInstance]: {
+          ...existingInstance,
+          ...partial,
+        },
+      },
+    };
+
+    await this.save(nextConfig);
+
+    return nextConfig;
+  }
+
   async getCurrentInstance(): Promise<InstanceConfig | null> {
     const config = await this.load();
     return config.instances[config.currentInstance] ?? null;
