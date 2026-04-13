@@ -64,4 +64,29 @@ npm test
 npm run build
 ```
 
+## GitHub Release
+
+Releases are built and published by GitHub Actions when a semantic version tag is pushed:
+
+```bash
+npm version patch
+git push origin main
+git push origin v0.1.1
+```
+
+The release workflow will:
+
+- require the pushed tag to match `package.json` version
+- run `npm ci`, `npm test`, `npm run typecheck`, and `npm run build`
+- generate a release `.tgz` with `npm pack`
+- generate a `SHA256SUMS` file
+- create or update the matching GitHub Release with generated notes
+
+For a local dry run of the packaging step:
+
+```bash
+npm run build
+npm run release:pack -- --tag v0.1.0
+```
+
 Use generic example URLs, tokens, workspaces, and project IDs in docs and commits. Do not commit real PATs or environment files.
