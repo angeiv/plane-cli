@@ -23,6 +23,10 @@ plane work-item comment <ref>
 npm install
 ```
 
+## Runtime
+
+`plane-cli` targets Node.js 24 or newer.
+
 ## Run Locally
 
 ```bash
