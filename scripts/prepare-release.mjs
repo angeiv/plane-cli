@@ -57,6 +57,10 @@ export function buildSha256Line(filename, buffer) {
   return `${digest}  ${filename}`;
 }
 
+export function resolvePackedTarballPath(outDir, filename) {
+  return path.isAbsolute(filename) ? filename : path.join(outDir, filename);
+}
+
 async function loadPackageMetadata() {
   const packageJson = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -95,7 +99,7 @@ async function main() {
   await mkdir(outDir, { recursive: true });
 
   const packOutput = execFileSync(
-    "npm",
+    "pnpm",
     ["pack", "--json", "--pack-destination", outDir],
     {
       cwd: process.cwd(),
@@ -103,12 +107,18 @@ async function main() {
       stdio: ["ignore", "pipe", "inherit"],
     },
   );
-  const [{ filename }] = JSON.parse(packOutput);
+  const packMetadata = JSON.parse(packOutput);
+  const filename = Array.isArray(packMetadata) ? packMetadata[0]?.filename : packMetadata?.filename;
 
-  const tarballPath = path.join(outDir, filename);
+  if (typeof filename !== "string" || filename.length === 0) {
+    throw new Error("Unable to determine packed release filename.");
+  }
+
+  const tarballPath = resolvePackedTarballPath(outDir, filename);
+  const tarballName = path.basename(tarballPath);
   const tarball = await readFile(tarballPath);
   const sumsPath = path.join(outDir, "SHA256SUMS");
-  const sumsContents = `${buildSha256Line(filename, tarball)}\n`;
+  const sumsContents = `${buildSha256Line(tarballName, tarball)}\n`;
 
   await writeFile(sumsPath, sumsContents, "utf8");
 
@@ -119,7 +129,7 @@ async function main() {
         outDir,
         tag: options.tag,
         version: pkg.version,
-        assets: [filename, "SHA256SUMS"],
+        assets: [tarballName, "SHA256SUMS"],
       },
       null,
       2,

@@ -20,15 +20,20 @@ plane work-item comment <ref>
 ## Install Dependencies
 
 ```bash
-npm install
+corepack enable
+pnpm install
 ```
+
+## Runtime
+
+`plane-cli` targets Node.js 22 or newer and uses pnpm 10 via Corepack.
 
 ## Run Locally
 
 ```bash
-npm run dev -- auth login --base-url https://plane.example.internal --api-key <token> --workspace example-workspace
-npm run dev -- project list --json
-npm run dev -- work-item list --limit 20 --json
+pnpm dev -- auth login --base-url https://plane.example.internal --api-key <token> --workspace example-workspace
+pnpm dev -- project list --json
+pnpm dev -- work-item list --limit 20 --json
 ```
 
 ## Local Config
@@ -60,8 +65,9 @@ The skill explains:
 ## Development
 
 ```bash
-npm test
-npm run build
+pnpm test
+pnpm run typecheck
+pnpm run build
 ```
 
 ## GitHub Release
@@ -69,7 +75,7 @@ npm run build
 Releases are built and published by GitHub Actions when a semantic version tag is pushed:
 
 ```bash
-npm version patch
+pnpm version patch
 git push origin main
 git push origin v0.1.1
 ```
@@ -77,16 +83,16 @@ git push origin v0.1.1
 The release workflow will:
 
 - require the pushed tag to match `package.json` version
-- run `npm ci`, `npm test`, `npm run typecheck`, and `npm run build`
-- generate a release `.tgz` with `npm pack`
+- run `pnpm install --frozen-lockfile`, `pnpm test`, `pnpm run typecheck`, and `pnpm run build`
+- generate a release `.tgz` with `pnpm pack`
 - generate a `SHA256SUMS` file
 - create or update the matching GitHub Release with generated notes
 
 For a local dry run of the packaging step:
 
 ```bash
-npm run build
-npm run release:pack -- --tag v0.1.0
+pnpm run build
+pnpm run release:pack -- --tag v0.1.0
 ```
 
 Use generic example URLs, tokens, workspaces, and project IDs in docs and commits. Do not commit real PATs or environment files.

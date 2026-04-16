@@ -8,3 +8,4 @@ export declare function parseArgs(argv: string[]): PrepareReleaseOptions;
 export declare function expectedTagForVersion(version: string): string;
 export declare function assertReleaseTagMatchesVersion(tag: string, version: string): void;
 export declare function buildSha256Line(filename: string, buffer: Uint8Array): string;
+export declare function resolvePackedTarballPath(outDir: string, filename: string): string;
