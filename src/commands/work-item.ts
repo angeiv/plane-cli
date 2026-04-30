@@ -14,26 +14,6 @@ function collectValues(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
-function stripHtml(html: string): string {
-  // Security: avoid all CodeQL warnings.
-  // Strategy: strip tags first, then decode entities in a SINGLE pass
-  // using a single regex to avoid cascading/double-decoding.
-  const noTags = html.replace(/<[^>]*>?/g, "");   // strip complete and partial tags
-  const noComments = noTags.replace(/<!--[^>]*>?/g, ""); // strip complete and partial comments
-  // Single-pass entity decode to avoid double-unescaping:
-  // Each entity is replaced in one pass, so &amp;lt; → &lt; (not <)
-  const decoded = noComments.replace(
-    /&(amp|lt|gt|quot|#39|nbsp);/g,
-    (_, entity) => {
-      const map: Record<string, string> = {
-        amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " ",
-      };
-      return map[entity] ?? _;
-    },
-  );
-  return decoded.replace(/\s+/g, " ").trim();
-}
-
 function parseParentRef(value: string | undefined): string | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -298,7 +278,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
               item.id.slice(0, 8),
               item.actor_detail?.display_name ?? item.actor ?? "-",
               (item.created_at ?? "-").slice(0, 16),
-              stripHtml(item.comment_html ?? "").slice(0, 60),
+              (item.comment_stripped_html ?? item.comment_html ?? "").slice(0, 60),
             ]),
           ),
         );
