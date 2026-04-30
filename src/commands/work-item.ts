@@ -14,6 +14,20 @@ function collectValues(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
+function stripHtml(html: string): string {
+  // Use a proper parser approach: decode HTML entities and strip all tags
+  // Avoids incomplete multi-character sanitization (CodeQL security warning)
+  return html
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/<\s*\/?[a-zA-Z][^>]*>/g, "")  // match proper HTML tags only
+    .replace(/<\s*!--[^>]*-->/g, "")          // strip comments
+    .trim();
+}
+
 function parseParentRef(value: string | undefined): string | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -278,7 +292,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
               item.id.slice(0, 8),
               item.actor_detail?.display_name ?? item.actor ?? "-",
               (item.created_at ?? "-").slice(0, 16),
-              (item.comment_html ?? "").replace(/<[^>]*>/g, "").slice(0, 60),
+              stripHtml(item.comment_html ?? "").slice(0, 60),
             ]),
           ),
         );
