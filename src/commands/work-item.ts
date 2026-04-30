@@ -15,19 +15,22 @@ function collectValues(value: string, previous: string[]): string[] {
 }
 
 function stripHtml(html: string): string {
-  // Security: avoid all CodeQL warnings by using a strict whitelist approach.
-  // 1) Strip ALL angle-bracket sequences (complete and incomplete tags/comments)
-  // 2) Then decode HTML entities in a single pass to avoid double-unescaping
-  // 3) Collapse whitespace for readability
-  const noTags = html.replace(/<[^>]*>?/g, "");   // strip complete tags and partial tags like <script
+  // Security: avoid all CodeQL warnings.
+  // Strategy: strip tags first, then decode entities in a SINGLE pass
+  // using a single regex to avoid cascading/double-decoding.
+  const noTags = html.replace(/<[^>]*>?/g, "");   // strip complete and partial tags
   const noComments = noTags.replace(/<!--[^>]*>?/g, ""); // strip complete and partial comments
-  const decoded = noComments
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ");
+  // Single-pass entity decode to avoid double-unescaping:
+  // Each entity is replaced in one pass, so &amp;lt; → &lt; (not <)
+  const decoded = noComments.replace(
+    /&(amp|lt|gt|quot|#39|nbsp);/g,
+    (_, entity) => {
+      const map: Record<string, string> = {
+        amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " ",
+      };
+      return map[entity] ?? _;
+    },
+  );
   return decoded.replace(/\s+/g, " ").trim();
 }
 
