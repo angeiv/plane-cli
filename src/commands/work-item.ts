@@ -15,17 +15,20 @@ function collectValues(value: string, previous: string[]): string[] {
 }
 
 function stripHtml(html: string): string {
-  // Use a proper parser approach: decode HTML entities and strip all tags
-  // Avoids incomplete multi-character sanitization (CodeQL security warning)
-  return html
+  // Security: avoid all CodeQL warnings by using a strict whitelist approach.
+  // 1) Strip ALL angle-bracket sequences (complete and incomplete tags/comments)
+  // 2) Then decode HTML entities in a single pass to avoid double-unescaping
+  // 3) Collapse whitespace for readability
+  const noTags = html.replace(/<[^>]*>?/g, "");   // strip complete tags and partial tags like <script
+  const noComments = noTags.replace(/<!--[^>]*>?/g, ""); // strip complete and partial comments
+  const decoded = noComments
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/<\s*\/?[a-zA-Z][^>]*>/g, "")  // match proper HTML tags only
-    .replace(/<\s*!--[^>]*-->/g, "")          // strip comments
-    .trim();
+    .replace(/&nbsp;/g, " ");
+  return decoded.replace(/\s+/g, " ").trim();
 }
 
 function parseParentRef(value: string | undefined): string | null | undefined {
