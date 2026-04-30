@@ -1,6 +1,8 @@
 import { Command } from "commander";
 
 import { createAuthCommand } from "./commands/auth.js";
+import { createCycleCommand } from "./commands/cycle.js";
+import { createModuleCommand } from "./commands/module.js";
 import { createProjectCommand } from "./commands/project.js";
 import { createWorkItemCommand } from "./commands/work-item.js";
 import { createWorkspaceCommand } from "./commands/workspace.js";
@@ -15,5 +17,7 @@ export function createCli(dependencies: CliDependencies = {}): Command {
     .addCommand(createAuthCommand(runtime))
     .addCommand(createWorkspaceCommand(runtime))
     .addCommand(createProjectCommand(runtime))
-    .addCommand(createWorkItemCommand(runtime));
+    .addCommand(createWorkItemCommand(runtime))
+    .addCommand(createCycleCommand(runtime))
+    .addCommand(createModuleCommand(runtime));
 }

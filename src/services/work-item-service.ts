@@ -2,13 +2,14 @@ import { ConfigStore } from "../config/config-store.js";
 import { CliError } from "../plane/errors.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
 import type { PaginatedResponse, PlaneComment, PlaneLabel, PlaneState, PlaneWorkItem } from "../plane/types.js";
-import { CommentsApi } from "../plane/comments-api.js";
+import { CommentsApi, type ListCommentsParams } from "../plane/comments-api.js";
 import { LabelsApi } from "../plane/labels-api.js";
 import { MembersApi } from "../plane/members-api.js";
 import { StatesApi } from "../plane/states-api.js";
 import { WorkItemsApi } from "../plane/work-items-api.js";
 
 import { ContextService } from "./context-service.js";
+import { findByPagination } from "./pagination.js";
 import { ProjectService } from "./project-service.js";
 
 export interface WorkItemContextOverrides {
@@ -28,6 +29,9 @@ export interface MutateWorkItemInput extends WorkItemContextOverrides {
   name?: string;
   priority?: string;
   state?: string;
+  start_date?: string;
+  target_date?: string;
+  parent?: string | null;
 }
 
 export class WorkItemService {
@@ -91,6 +95,43 @@ export class WorkItemService {
     await api.delete(workspaceSlug, projectId, workItemId);
   }
 
+  async listComments(
+    workItemRef: string,
+    params: ListCommentsParams = {},
+    overrides: WorkItemContextOverrides = {},
+  ): Promise<PaginatedResponse<PlaneComment>> {
+    const { api, client, workspaceSlug, projectId } = await this.resolveContext(overrides);
+    const workItemId = await this.resolveWorkItemRef(api, workItemRef, workspaceSlug, projectId);
+    const commentsApi = new CommentsApi(client);
+
+    return commentsApi.list(workspaceSlug, projectId, workItemId, params);
+  }
+
+  async updateComment(
+    workItemRef: string,
+    commentId: string,
+    body: string,
+    overrides: WorkItemContextOverrides = {},
+  ): Promise<PlaneComment> {
+    const { api, client, workspaceSlug, projectId } = await this.resolveContext(overrides);
+    const workItemId = await this.resolveWorkItemRef(api, workItemRef, workspaceSlug, projectId);
+    const commentsApi = new CommentsApi(client);
+
+    return commentsApi.update(workspaceSlug, projectId, workItemId, commentId, this.ensureHtmlParagraph(body));
+  }
+
+  async deleteComment(
+    workItemRef: string,
+    commentId: string,
+    overrides: WorkItemContextOverrides = {},
+  ): Promise<void> {
+    const { api, client, workspaceSlug, projectId } = await this.resolveContext(overrides);
+    const workItemId = await this.resolveWorkItemRef(api, workItemRef, workspaceSlug, projectId);
+    const commentsApi = new CommentsApi(client);
+
+    return commentsApi.delete(workspaceSlug, projectId, workItemId, commentId);
+  }
+
   private async resolveContext(
     overrides: WorkItemContextOverrides,
   ): Promise<{ api: WorkItemsApi; client: PlaneHttpClient; projectId: string; workspaceSlug: string }> {
@@ -135,8 +176,10 @@ export class WorkItemService {
       throw new CliError("WORK_ITEM_NOT_FOUND", `Work item ref '${workItemRef}' could not be resolved.`);
     }
 
-    const workItems = await api.list(workspaceSlug, projectId, { perPage: 20 });
-    const match = workItems.results.find((item) => item.sequence_id === sequenceId);
+    const match = await findByPagination(
+      (cursor) => api.list(workspaceSlug, projectId, { cursor, perPage: 50 }),
+      (item) => item.sequence_id === sequenceId ? item : undefined,
+    );
 
     if (!match) {
       throw new CliError("WORK_ITEM_NOT_FOUND", `Work item '${workItemRef}' was not found in the active project.`);
@@ -175,6 +218,20 @@ export class WorkItemService {
 
     if (input.labels && input.labels.length > 0) {
       payload.labels = await this.resolveLabels(client, workspaceSlug, projectId, input.labels);
+    }
+
+    if (input.start_date) {
+      payload.start_date = input.start_date;
+    }
+
+    if (input.target_date) {
+      payload.target_date = input.target_date;
+    }
+
+    if (input.parent === null) {
+      payload.parent = null;
+    } else if (input.parent) {
+      payload.parent = await this.resolveParentId(client, workspaceSlug, projectId, input.parent);
     }
 
     return payload;
@@ -252,5 +309,33 @@ export class WorkItemService {
 
   private looksLikeUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  private async resolveParentId(
+    client: PlaneHttpClient,
+    workspaceSlug: string,
+    projectId: string,
+    parentRef: string,
+  ): Promise<string> {
+    if (this.looksLikeUuid(parentRef)) {
+      return parentRef;
+    }
+
+    const { WorkItemsApi } = await import("../plane/work-items-api.js");
+    const workItemsApi = new WorkItemsApi(client);
+    const sequenceId = Number(parentRef);
+
+    if (!Number.isInteger(sequenceId)) {
+      throw new CliError("WORK_ITEM_NOT_FOUND", `Parent work item ref '${parentRef}' could not be resolved.`);
+    }
+
+    const workItems = await workItemsApi.list(workspaceSlug, projectId, { perPage: 100 });
+    const match = workItems.results.find((item) => item.sequence_id === sequenceId);
+
+    if (!match) {
+      throw new CliError("WORK_ITEM_NOT_FOUND", `Parent work item '${parentRef}' was not found in the active project.`);
+    }
+
+    return match.id;
   }
 }

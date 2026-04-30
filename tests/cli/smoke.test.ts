@@ -10,7 +10,9 @@ describe("createCli", () => {
       "auth",
       "workspace",
       "project",
-      "work-item"
+      "work-item",
+      "cycle",
+      "module",
     ]);
   });
 });

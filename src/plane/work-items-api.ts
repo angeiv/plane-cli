@@ -14,6 +14,9 @@ export interface UpsertWorkItemPayload {
   name?: string;
   priority?: string;
   state?: string;
+  start_date?: string;
+  target_date?: string;
+  parent?: string;
 }
 
 export class WorkItemsApi {

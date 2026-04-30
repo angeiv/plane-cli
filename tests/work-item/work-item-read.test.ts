@@ -40,7 +40,7 @@ function createWorkItemReadFetch() {
       );
     }
 
-    if (url.includes("/work-items/?per_page=20")) {
+    if (url.includes("/work-items/?per_page=")) {
       return new Response(
         JSON.stringify({
           count: 1,
