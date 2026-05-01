@@ -1,208 +1,294 @@
-import { ConfigStore } from "../config/config-store.js";
+import type { ConfigStore } from "../config/config-store.js";
+import { CyclesApi, type UpdateCyclePayload } from "../plane/cycles-api.js";
 import { CliError } from "../plane/errors.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
 import type { PaginatedResponse, PlaneCycle } from "../plane/types.js";
-import { CyclesApi, type UpdateCyclePayload } from "../plane/cycles-api.js";
 
 import { ContextService } from "./context-service.js";
 import { findByPagination } from "./pagination.js";
 import { ProjectService } from "./project-service.js";
 
 export interface CycleContextOverrides {
-  projectRef?: string;
-  workspaceSlug?: string;
+	projectRef?: string;
+	workspaceSlug?: string;
 }
 
 export interface ListCyclesInput extends CycleContextOverrides {
-  cursor?: string;
-  limit?: number;
+	cursor?: string;
+	limit?: number;
 }
 
 export interface MutateCycleInput extends CycleContextOverrides {
-  name?: string;
-  description?: string;
-  start_date?: string;
-  end_date?: string;
-  owned_by?: string;
+	name?: string;
+	description?: string;
+	start_date?: string;
+	end_date?: string;
+	owned_by?: string;
 }
 
 export class CycleService {
-  private readonly contextService: ContextService;
-  private readonly projectService: ProjectService;
+	private readonly contextService: ContextService;
+	private readonly projectService: ProjectService;
 
-  constructor(
-    private readonly store: ConfigStore,
-    private readonly fetchImpl?: typeof fetch,
-  ) {
-    this.contextService = new ContextService(store);
-    this.projectService = new ProjectService(store, fetchImpl);
-  }
+	constructor(
+		private readonly store: ConfigStore,
+		private readonly fetchImpl?: typeof fetch,
+	) {
+		this.contextService = new ContextService(store);
+		this.projectService = new ProjectService(store, fetchImpl);
+	}
 
-  async list(input: ListCyclesInput = {}): Promise<PaginatedResponse<PlaneCycle>> {
-    const { api, workspaceSlug, projectId } = await this.resolveContext(input);
+	async list(
+		input: ListCyclesInput = {},
+	): Promise<PaginatedResponse<PlaneCycle>> {
+		const { api, workspaceSlug, projectId } = await this.resolveContext(input);
 
-    return api.list(workspaceSlug, projectId, {
-      cursor: input.cursor,
-      perPage: input.limit,
-    });
-  }
+		return api.list(workspaceSlug, projectId, {
+			cursor: input.cursor,
+			perPage: input.limit,
+		});
+	}
 
-  async view(cycleRef: string, overrides: CycleContextOverrides = {}): Promise<PlaneCycle> {
-    const { api, workspaceSlug, projectId } = await this.resolveContext(overrides);
-    const cycleId = await this.resolveCycleRef(api, cycleRef, workspaceSlug, projectId);
+	async view(
+		cycleRef: string,
+		overrides: CycleContextOverrides = {},
+	): Promise<PlaneCycle> {
+		const { api, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const cycleId = await this.resolveCycleRef(
+			api,
+			cycleRef,
+			workspaceSlug,
+			projectId,
+		);
 
-    return api.retrieve(workspaceSlug, projectId, cycleId);
-  }
+		return api.retrieve(workspaceSlug, projectId, cycleId);
+	}
 
-  async create(input: MutateCycleInput & { name: string }): Promise<PlaneCycle> {
-    const { api, workspaceSlug, projectId } = await this.resolveContext(input);
-    const payload = {
-      description: input.description,
-      end_date: input.end_date,
-      name: input.name,
-      owned_by: input.owned_by,
-      start_date: input.start_date,
-    };
+	async create(
+		input: MutateCycleInput & { name: string },
+	): Promise<PlaneCycle> {
+		const { api, workspaceSlug, projectId } = await this.resolveContext(input);
+		const payload = {
+			description: input.description,
+			end_date: input.end_date,
+			name: input.name,
+			owned_by: input.owned_by,
+			start_date: input.start_date,
+		};
 
-    return api.create(workspaceSlug, projectId, payload);
-  }
+		return api.create(workspaceSlug, projectId, payload);
+	}
 
-  async update(cycleRef: string, input: MutateCycleInput): Promise<PlaneCycle> {
-    const { api, workspaceSlug, projectId } = await this.resolveContext(input);
-    const cycleId = await this.resolveCycleRef(api, cycleRef, workspaceSlug, projectId);
-    const payload: UpdateCyclePayload = {
-      description: input.description,
-      end_date: input.end_date,
-      name: input.name,
-      owned_by: input.owned_by,
-      start_date: input.start_date,
-    };
+	async update(cycleRef: string, input: MutateCycleInput): Promise<PlaneCycle> {
+		const { api, workspaceSlug, projectId } = await this.resolveContext(input);
+		const cycleId = await this.resolveCycleRef(
+			api,
+			cycleRef,
+			workspaceSlug,
+			projectId,
+		);
+		const payload: UpdateCyclePayload = {
+			description: input.description,
+			end_date: input.end_date,
+			name: input.name,
+			owned_by: input.owned_by,
+			start_date: input.start_date,
+		};
 
-    if (Object.keys(payload).length === 0) {
-      throw new CliError("EMPTY_UPDATE", "No update fields were provided.");
-    }
+		if (Object.keys(payload).length === 0) {
+			throw new CliError("EMPTY_UPDATE", "No update fields were provided.");
+		}
 
-    return api.update(workspaceSlug, projectId, cycleId, payload);
-  }
+		return api.update(workspaceSlug, projectId, cycleId, payload);
+	}
 
-  async archive(cycleRef: string, overrides: CycleContextOverrides = {}): Promise<PlaneCycle> {
-    const { api, workspaceSlug, projectId } = await this.resolveContext(overrides);
-    const cycleId = await this.resolveCycleRef(api, cycleRef, workspaceSlug, projectId);
+	async archive(
+		cycleRef: string,
+		overrides: CycleContextOverrides = {},
+	): Promise<PlaneCycle> {
+		const { api, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const cycleId = await this.resolveCycleRef(
+			api,
+			cycleRef,
+			workspaceSlug,
+			projectId,
+		);
 
-    return api.archive(workspaceSlug, projectId, cycleId);
-  }
+		return api.archive(workspaceSlug, projectId, cycleId);
+	}
 
-  async delete(cycleRef: string, overrides: CycleContextOverrides = {}): Promise<void> {
-    const { api, workspaceSlug, projectId } = await this.resolveContext(overrides);
-    const cycleId = await this.resolveCycleRef(api, cycleRef, workspaceSlug, projectId);
-    await api.delete(workspaceSlug, projectId, cycleId);
-  }
+	async delete(
+		cycleRef: string,
+		overrides: CycleContextOverrides = {},
+	): Promise<void> {
+		const { api, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const cycleId = await this.resolveCycleRef(
+			api,
+			cycleRef,
+			workspaceSlug,
+			projectId,
+		);
+		await api.delete(workspaceSlug, projectId, cycleId);
+	}
 
-  async addIssues(
-    cycleRef: string,
-    issueRefs: string[],
-    overrides: CycleContextOverrides = {},
-  ): Promise<Array<{ id: string; issue: string; cycle: string }>> {
-    const { api, client, workspaceSlug, projectId } = await this.resolveContext(overrides);
-    const cycleId = await this.resolveCycleRef(api, cycleRef, workspaceSlug, projectId);
-    const issueIds = await this.resolveIssueIds(client, workspaceSlug, projectId, issueRefs);
+	async addIssues(
+		cycleRef: string,
+		issueRefs: string[],
+		overrides: CycleContextOverrides = {},
+	): Promise<Array<{ id: string; issue: string; cycle: string }>> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const cycleId = await this.resolveCycleRef(
+			api,
+			cycleRef,
+			workspaceSlug,
+			projectId,
+		);
+		const issueIds = await this.resolveIssueIds(
+			client,
+			workspaceSlug,
+			projectId,
+			issueRefs,
+		);
 
-    return api.addIssues(workspaceSlug, projectId, cycleId, issueIds);
-  }
+		return api.addIssues(workspaceSlug, projectId, cycleId, issueIds);
+	}
 
-  async removeIssues(
-    cycleRef: string,
-    issueRefs: string[],
-    overrides: CycleContextOverrides = {},
-  ): Promise<void> {
-    const { api, client, workspaceSlug, projectId } = await this.resolveContext(overrides);
-    const cycleId = await this.resolveCycleRef(api, cycleRef, workspaceSlug, projectId);
-    const issueIds = await this.resolveIssueIds(client, workspaceSlug, projectId, issueRefs);
+	async removeIssues(
+		cycleRef: string,
+		issueRefs: string[],
+		overrides: CycleContextOverrides = {},
+	): Promise<void> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const cycleId = await this.resolveCycleRef(
+			api,
+			cycleRef,
+			workspaceSlug,
+			projectId,
+		);
+		const issueIds = await this.resolveIssueIds(
+			client,
+			workspaceSlug,
+			projectId,
+			issueRefs,
+		);
 
-    return api.removeIssues(workspaceSlug, projectId, cycleId, issueIds);
-  }
+		return api.removeIssues(workspaceSlug, projectId, cycleId, issueIds);
+	}
 
-  private async resolveContext(
-    overrides: CycleContextOverrides,
-  ): Promise<{ api: CyclesApi; client: PlaneHttpClient; workspaceSlug: string; projectId: string }> {
-    const instance = await this.contextService.getCurrentInstance();
-    const workspaceSlug = overrides.workspaceSlug ?? instance.workspaceSlug;
+	private async resolveContext(overrides: CycleContextOverrides): Promise<{
+		api: CyclesApi;
+		client: PlaneHttpClient;
+		workspaceSlug: string;
+		projectId: string;
+	}> {
+		const instance = await this.contextService.getCurrentInstance();
+		const workspaceSlug = overrides.workspaceSlug ?? instance.workspaceSlug;
 
-    if (!workspaceSlug) {
-      throw new CliError("MISSING_WORKSPACE", "No workspace configured. Run `plane workspace use <slug>` first.");
-    }
+		if (!workspaceSlug) {
+			throw new CliError(
+				"MISSING_WORKSPACE",
+				"No workspace configured. Run `plane workspace use <slug>` first.",
+			);
+		}
 
-    const projectId = overrides.projectRef
-      ? await this.projectService.resolveProjectRef(overrides.projectRef)
-      : await this.contextService.requireProjectId();
+		const projectId = overrides.projectRef
+			? await this.projectService.resolveProjectRef(overrides.projectRef)
+			: await this.contextService.requireProjectId();
 
-    const client = new PlaneHttpClient({
-      apiKey: instance.apiKey,
-      baseUrl: instance.baseUrl,
-      fetchImpl: this.fetchImpl,
-    });
+		const client = new PlaneHttpClient({
+			apiKey: instance.apiKey,
+			baseUrl: instance.baseUrl,
+			fetchImpl: this.fetchImpl,
+		});
 
-    return {
-      api: new CyclesApi(client),
-      client,
-      workspaceSlug,
-      projectId,
-    };
-  }
+		return {
+			api: new CyclesApi(client),
+			client,
+			workspaceSlug,
+			projectId,
+		};
+	}
 
-  private async resolveCycleRef(
-    api: CyclesApi,
-    cycleRef: string,
-    workspaceSlug: string,
-    projectId: string,
-  ): Promise<string> {
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cycleRef)) {
-      return cycleRef;
-    }
+	private async resolveCycleRef(
+		api: CyclesApi,
+		cycleRef: string,
+		workspaceSlug: string,
+		projectId: string,
+	): Promise<string> {
+		if (
+			/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+				cycleRef,
+			)
+		) {
+			return cycleRef;
+		}
 
-    const match = await findByPagination(
-      (cursor) => api.list(workspaceSlug, projectId, { cursor, perPage: 50 }),
-      (item) => item.name.toLowerCase() === cycleRef.toLowerCase() ? item : undefined,
-    );
+		const match = await findByPagination(
+			(cursor) => api.list(workspaceSlug, projectId, { cursor, perPage: 50 }),
+			(item) =>
+				item.name.toLowerCase() === cycleRef.toLowerCase() ? item : undefined,
+		);
 
-    if (!match) {
-      throw new CliError("CYCLE_NOT_FOUND", `Cycle '${cycleRef}' was not found in the active project.`);
-    }
+		if (!match) {
+			throw new CliError(
+				"CYCLE_NOT_FOUND",
+				`Cycle '${cycleRef}' was not found in the active project.`,
+			);
+		}
 
-    return match.id;
-  }
+		return match.id;
+	}
 
-  private async resolveIssueIds(
-    client: PlaneHttpClient,
-    workspaceSlug: string,
-    projectId: string,
-    issueRefs: string[],
-  ): Promise<string[]> {
-    const { WorkItemsApi } = await import("../plane/work-items-api.js");
-    const workItemsApi = new WorkItemsApi(client);
+	private async resolveIssueIds(
+		client: PlaneHttpClient,
+		workspaceSlug: string,
+		projectId: string,
+		issueRefs: string[],
+	): Promise<string[]> {
+		const { WorkItemsApi } = await import("../plane/work-items-api.js");
+		const workItemsApi = new WorkItemsApi(client);
 
-    return Promise.all(
-      issueRefs.map(async (ref) => {
-        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref)) {
-          return ref;
-        }
+		return Promise.all(
+			issueRefs.map(async (ref) => {
+				if (
+					/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+						ref,
+					)
+				) {
+					return ref;
+				}
 
-        const sequenceId = Number(ref);
-        if (!Number.isInteger(sequenceId)) {
-          throw new CliError("WORK_ITEM_NOT_FOUND", `Work item ref '${ref}' could not be resolved.`);
-        }
+				const sequenceId = Number(ref);
+				if (!Number.isInteger(sequenceId)) {
+					throw new CliError(
+						"WORK_ITEM_NOT_FOUND",
+						`Work item ref '${ref}' could not be resolved.`,
+					);
+				}
 
-        const match = await findByPagination(
-          (cursor) => workItemsApi.list(workspaceSlug, projectId, { cursor, perPage: 50 }),
-          (item) => item.sequence_id === sequenceId ? item : undefined,
-        );
+				const match = await findByPagination(
+					(cursor) =>
+						workItemsApi.list(workspaceSlug, projectId, {
+							cursor,
+							perPage: 50,
+						}),
+					(item) => (item.sequence_id === sequenceId ? item : undefined),
+				);
 
-        if (!match) {
-          throw new CliError("WORK_ITEM_NOT_FOUND", `Work item '${ref}' was not found in the active project.`);
-        }
+				if (!match) {
+					throw new CliError(
+						"WORK_ITEM_NOT_FOUND",
+						`Work item '${ref}' was not found in the active project.`,
+					);
+				}
 
-        return match.id;
-      }),
-    );
-  }
+				return match.id;
+			}),
+		);
+	}
 }
