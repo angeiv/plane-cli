@@ -1,37 +1,46 @@
-import { ConfigStore } from "../config/config-store.js";
 import type { InstanceConfig } from "../config/config-schema.js";
+import type { ConfigStore } from "../config/config-store.js";
 import { CliError } from "../plane/errors.js";
 
 export class ContextService {
-  constructor(private readonly store: ConfigStore) {}
+	constructor(private readonly store: ConfigStore) {}
 
-  async getCurrentInstance(): Promise<InstanceConfig> {
-    const instance = await this.store.getCurrentInstance();
+	async getCurrentInstance(): Promise<InstanceConfig> {
+		const instance = await this.store.getCurrentInstance();
 
-    if (!instance) {
-      throw new CliError("MISSING_AUTH", "No active Plane authentication is configured.");
-    }
+		if (!instance) {
+			throw new CliError(
+				"MISSING_AUTH",
+				"No active Plane authentication is configured.",
+			);
+		}
 
-    return instance;
-  }
+		return instance;
+	}
 
-  async requireWorkspaceSlug(): Promise<string> {
-    const instance = await this.getCurrentInstance();
+	async requireWorkspaceSlug(): Promise<string> {
+		const instance = await this.getCurrentInstance();
 
-    if (!instance.workspaceSlug) {
-      throw new CliError("MISSING_WORKSPACE", "No workspace configured. Run `plane workspace use <slug>` first.");
-    }
+		if (!instance.workspaceSlug) {
+			throw new CliError(
+				"MISSING_WORKSPACE",
+				"No workspace configured. Run `plane workspace use <slug>` first.",
+			);
+		}
 
-    return instance.workspaceSlug;
-  }
+		return instance.workspaceSlug;
+	}
 
-  async requireProjectId(): Promise<string> {
-    const instance = await this.getCurrentInstance();
+	async requireProjectId(): Promise<string> {
+		const instance = await this.getCurrentInstance();
 
-    if (!instance.defaultProjectId) {
-      throw new CliError("MISSING_PROJECT", "No default project configured. Run `plane project use <id|key>` first.");
-    }
+		if (!instance.defaultProjectId) {
+			throw new CliError(
+				"MISSING_PROJECT",
+				"No default project configured. Run `plane project use <id|key>` first.",
+			);
+		}
 
-    return instance.defaultProjectId;
-  }
+		return instance.defaultProjectId;
+	}
 }
