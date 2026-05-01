@@ -12,6 +12,7 @@ describe("createCli", () => {
       "project",
       "work-item",
       "cycle",
+      "label",
       "module",
     ]);
   });

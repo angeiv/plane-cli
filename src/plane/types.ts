@@ -61,6 +61,9 @@ export interface PlaneComment {
 export interface PlaneLabel {
   id: string;
   name: string;
+  color?: string | null;
+  description?: string | null;
+  parent?: string | null;
 }
 
 export interface PlaneCycle {
