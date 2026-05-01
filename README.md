@@ -2,19 +2,129 @@
 
 A `gh`-style CLI for self-hosted Plane Community Edition.
 
-## Current Phase 1 Commands
+## Commands
 
 ```bash
-plane auth login
+# Authentication
+plane auth login --base-url <url> --api-key <token> --workspace <slug>
 plane auth status
+plane auth logout
+
+# Workspace & Project
+plane workspace list
 plane workspace use <slug>
 plane project list
 plane project use <id|key>
+
+# Work Items
+plane work-item list [--limit 20] [--json] [--tsv] [--format jq --jq '.results[].name']
+plane work-item view <ref> [--json]
+plane work-item create --name <name> [--description <text>] [--priority <p>] [--assignee <email>] [--start-date <d>] [--target-date <d>] [--parent <ref>] [--cycle <ref>] [--module <ref>] [--label <name>]
+plane work-item update <ref> [--name <name>] [--state <state>] [--assignee <email>] [--start-date <d>] [--target-date <d>] [--parent <ref|none>] [--cycle <ref>] [--module <ref>] [--label <name>]
+plane work-item delete <ref>
+plane work-item comment <ref> --body <text>
+plane work-item list-comments <ref>
+plane work-item update-comment <ref> --comment-id <id> --body <text>
+plane work-item delete-comment <ref> --comment-id <id>
+
+# Cycles
+plane cycle list
+plane cycle view <ref>
+plane cycle create --name <name> [--start-date <d>] [--end-date <d>]
+plane cycle update <ref> [--name <name>] [--start-date <d>] [--end-date <d>]
+plane cycle delete <ref>
+plane cycle add-issue <ref> --issue <seq>
+plane cycle remove-issue <ref> --issue <seq>
+
+# Modules
+plane module list
+plane module view <ref>
+plane module create --name <name> [--status <status>] [--start-date <d>] [--target-date <d>] [--lead <email>] [--members <email>]
+plane module update <ref> [--name <name>] [--status <status>] [--start-date <d>] [--target-date <d>] [--lead <email>] [--members <email>]
+plane module delete <ref>
+plane module add-issue <ref> --issue <seq>
+plane module remove-issue <ref> --issue <seq>
+
+# Labels
+plane label list
+plane label create --name <name> [--color <hex>] [--description <text>]
+plane label delete <ref>
+```
+
+## Bug Management Workflow
+
+Bug tracking uses **labels**, not a separate issue type. Create Bug-related labels per your project's taxonomy:
+
+```bash
+# Create Bug labels (choose your own taxonomy)
+plane label create --name Bug --color "#E54545" --description "Defect or error"
+plane label create --name Regression --color "#FF6F00" --description "Regression defect"
+plane label create --name Security --color "#D50000" --description "Security vulnerability"
+```
+
+### Bug lifecycle
+
+Use `--label` multiple times to attach multiple labels:
+
+```bash
+# 1. Report a bug — attach Bug label on creation
+plane work-item create --name "Login fails on mobile" --label Bug --priority high --start-date 2026-05-01 --target-date 2026-05-03 --assignee dev@example.com --cycle "Sprint 1" --module "认证"
+
+# 2. Filter all bugs
+plane work-item list --json --jq '.results[] | select(.labels | length > 0)'
+
+# 3. Fix the bug
+plane work-item update 51 --state "In Progress"
+plane work-item comment 51 --body "Root cause: session cookie not set on mobile browsers."
+
+# 4. Mark as Done
+plane work-item update 51 --state Done
+plane work-item comment 51 --body "Fixed by adding SameSite=None to session cookie. Verified on iOS/Android."
+```
+
+> **Note:** `--label` is repeatable. Each `--label <name>` adds one label. Names are resolved to IDs automatically.
+> Example: `--label Bug --label Regression` attaches both Bug and Regression labels.
+
+### Module status
+
+Modules support status values with Chinese/English mapping:
+
+| English | Chinese | API value |
+|---------|---------|-----------|
+| backlog | 待办 | `backlog` |
+| planned | 已计划 | `planned` |
+| in-progress | 进行中 | `in-progress` |
+| paused | 已暂停 | `paused` |
+| completed | 已完成 | `completed` |
+| cancelled | 已取消 | `cancelled` |
+
+```bash
+plane module update "认证" --status 已完成
+plane module update "工作项" --status in-progress
+```
+
+## Output Formats
+
+All `list` and `view` commands support multiple output formats:
+
+```bash
+# Table (default)
 plane work-item list
-plane work-item view <ref>
-plane work-item create
-plane work-item update <ref>
-plane work-item comment <ref>
+
+# JSON
+plane work-item list --json
+plane work-item list --format json
+
+# TSV (for spreadsheet import)
+plane work-item list --tsv
+
+# Go template
+plane work-item list --template '{{range .results}}{{.name}}
+{{end}}'
+
+# JQ expression
+plane work-item list --jq '.results[].name'
+plane module list --jq '.results[] | {name: .name, status: .status}'
 ```
 
 ## Install Dependencies
