@@ -37,8 +37,11 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 	workItem
 		.command("list")
 		.description("List work items for the active project")
-		.option("--limit <number>", "Results per page", "20")
-		.option("--cursor <cursor>", "Pagination cursor")
+		.option(
+			"-L, --limit <number>",
+			"Maximum number of items to fetch (0 for all)",
+			"30",
+		)
 		.option("--workspace <slug>", "Override workspace slug")
 		.option("--project <id-or-key>", "Override project UUID or key")
 		.option("--json", "Print JSON output")
@@ -48,8 +51,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 		.option("--jq <expr>", "JQ expression (e.g. '.results[].name')")
 		.action(async (options) => {
 			try {
-				const result = await workItems.list({
-					cursor: options.cursor,
+				const items = await workItems.list({
 					limit: Number(options.limit),
 					projectRef: options.project,
 					workspaceSlug: options.workspace,
@@ -57,7 +59,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 
 				const format = resolveFormat(options);
 				const headers = ["SEQ", "NAME", "PRIORITY"];
-				const rows = result.results.map((item) => [
+				const rows = items.map((item) => [
 					String(item.sequence_id ?? "?"),
 					item.name,
 					item.priority ?? "none",
@@ -66,7 +68,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 				writeFormatted(
 					runtime.stdout,
 					format,
-					{ headers, rows, data: result },
+					{ headers, rows, data: { results: items } },
 					options.template,
 					options.jq,
 				);
@@ -306,8 +308,11 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 		.command("list-comments")
 		.description("List comments on a work item")
 		.argument("<ref>", "Work-item UUID or numeric sequence")
-		.option("--limit <number>", "Results per page", "20")
-		.option("--cursor <cursor>", "Pagination cursor")
+		.option(
+			"-L, --limit <number>",
+			"Maximum number of items to fetch (0 for all)",
+			"30",
+		)
 		.option("--workspace <slug>", "Override workspace slug")
 		.option("--project <id-or-key>", "Override project UUID or key")
 		.option("--json", "Print JSON output")
@@ -316,7 +321,6 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 				const result = await workItems.listComments(
 					ref,
 					{
-						cursor: options.cursor,
 						perPage: Number(options.limit),
 					},
 					{

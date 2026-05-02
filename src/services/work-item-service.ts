@@ -15,7 +15,7 @@ import type {
 import { WorkItemsApi } from "../plane/work-items-api.js";
 
 import { ContextService } from "./context-service.js";
-import { findByPagination } from "./pagination.js";
+import { collectUpToLimit, findByPagination } from "./pagination.js";
 import { ProjectService } from "./project-service.js";
 
 export interface WorkItemContextOverrides {
@@ -24,7 +24,6 @@ export interface WorkItemContextOverrides {
 }
 
 export interface ListWorkItemsInput extends WorkItemContextOverrides {
-	cursor?: string;
 	limit?: number;
 }
 
@@ -52,15 +51,15 @@ export class WorkItemService {
 		this.projectService = new ProjectService(store, fetchImpl);
 	}
 
-	async list(
-		input: ListWorkItemsInput = {},
-	): Promise<PaginatedResponse<PlaneWorkItem>> {
+	async list(input: ListWorkItemsInput = {}): Promise<PlaneWorkItem[]> {
 		const { api, workspaceSlug, projectId } = await this.resolveContext(input);
+		const limit = input.limit ?? 30;
 
-		return api.list(workspaceSlug, projectId, {
-			cursor: input.cursor,
-			perPage: input.limit,
-		});
+		return collectUpToLimit(
+			(cursor, pageSize) =>
+				api.list(workspaceSlug, projectId, { cursor, perPage: pageSize }),
+			limit,
+		);
 	}
 
 	async view(
