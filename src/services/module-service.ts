@@ -2,10 +2,10 @@ import type { ConfigStore } from "../config/config-store.js";
 import { CliError } from "../plane/errors.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
 import { ModulesApi, type UpdateModulePayload } from "../plane/modules-api.js";
-import type { PaginatedResponse, PlaneModule } from "../plane/types.js";
+import type { PlaneModule } from "../plane/types.js";
 
 import { ContextService } from "./context-service.js";
-import { findByPagination } from "./pagination.js";
+import { collectUpToLimit, findByPagination } from "./pagination.js";
 import { ProjectService } from "./project-service.js";
 
 export interface ModuleContextOverrides {
@@ -14,7 +14,6 @@ export interface ModuleContextOverrides {
 }
 
 export interface ListModulesInput extends ModuleContextOverrides {
-	cursor?: string;
 	limit?: number;
 }
 
@@ -40,15 +39,15 @@ export class ModuleService {
 		this.projectService = new ProjectService(store, fetchImpl);
 	}
 
-	async list(
-		input: ListModulesInput = {},
-	): Promise<PaginatedResponse<PlaneModule>> {
+	async list(input: ListModulesInput = {}): Promise<PlaneModule[]> {
 		const { api, workspaceSlug, projectId } = await this.resolveContext(input);
+		const limit = input.limit ?? 30;
 
-		return api.list(workspaceSlug, projectId, {
-			cursor: input.cursor,
-			perPage: input.limit,
-		});
+		return collectUpToLimit(
+			(cursor, pageSize) =>
+				api.list(workspaceSlug, projectId, { cursor, perPage: pageSize }),
+			limit,
+		);
 	}
 
 	async view(

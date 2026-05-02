@@ -95,8 +95,11 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 	module
 		.command("list")
 		.description("List modules for the active project")
-		.option("--limit <number>", "Results per page", "20")
-		.option("--cursor <cursor>", "Pagination cursor")
+		.option(
+			"-L, --limit <number>",
+			"Maximum number of items to fetch (0 for all)",
+			"30",
+		)
 		.option("--workspace <slug>", "Override workspace slug")
 		.option("--project <id-or-key>", "Override project UUID or key")
 		.option("--json", "Print JSON output")
@@ -106,8 +109,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 		.option("--jq <expr>", "JQ expression")
 		.action(async (options) => {
 			try {
-				const result = await moduleService.list({
-					cursor: options.cursor,
+				const items = await moduleService.list({
 					limit: Number(options.limit),
 					projectRef: options.project,
 					workspaceSlug: options.workspace,
@@ -115,7 +117,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 
 				const format = resolveFormat(options);
 				const headers = ["ID", "NAME", "STATUS", "START", "TARGET", "LEAD"];
-				const rows = result.results.map((item) => [
+				const rows = items.map((item) => [
 					item.id.slice(0, 8),
 					item.name,
 					item.status ?? "none",
@@ -127,7 +129,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 				writeFormatted(
 					runtime.stdout,
 					format,
-					{ headers, rows, data: result },
+					{ headers, rows, data: { results: items } },
 					options.template,
 					options.jq,
 				);

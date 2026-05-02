@@ -2,10 +2,10 @@ import type { ConfigStore } from "../config/config-store.js";
 import { CyclesApi, type UpdateCyclePayload } from "../plane/cycles-api.js";
 import { CliError } from "../plane/errors.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
-import type { PaginatedResponse, PlaneCycle } from "../plane/types.js";
+import type { PlaneCycle } from "../plane/types.js";
 
 import { ContextService } from "./context-service.js";
-import { findByPagination } from "./pagination.js";
+import { collectUpToLimit, findByPagination } from "./pagination.js";
 import { ProjectService } from "./project-service.js";
 
 export interface CycleContextOverrides {
@@ -14,7 +14,6 @@ export interface CycleContextOverrides {
 }
 
 export interface ListCyclesInput extends CycleContextOverrides {
-	cursor?: string;
 	limit?: number;
 }
 
@@ -38,15 +37,15 @@ export class CycleService {
 		this.projectService = new ProjectService(store, fetchImpl);
 	}
 
-	async list(
-		input: ListCyclesInput = {},
-	): Promise<PaginatedResponse<PlaneCycle>> {
+	async list(input: ListCyclesInput = {}): Promise<PlaneCycle[]> {
 		const { api, workspaceSlug, projectId } = await this.resolveContext(input);
+		const limit = input.limit ?? 30;
 
-		return api.list(workspaceSlug, projectId, {
-			cursor: input.cursor,
-			perPage: input.limit,
-		});
+		return collectUpToLimit(
+			(cursor, pageSize) =>
+				api.list(workspaceSlug, projectId, { cursor, perPage: pageSize }),
+			limit,
+		);
 	}
 
 	async view(
