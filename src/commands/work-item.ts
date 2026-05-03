@@ -13,6 +13,10 @@ function collectValues(value: string, previous: string[]): string[] {
 	return [...previous, value];
 }
 
+function shortId(id: string): string {
+	return id.length > 8 ? id.slice(0, 8) : id;
+}
+
 function parseParentRef(value: string | undefined): string | null | undefined {
 	if (value === undefined) {
 		return undefined;
@@ -99,7 +103,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 				const format = resolveFormat(options);
 				const headers = ["FIELD", "VALUE"];
 				const rows = [
-					["id", result.id],
+					["id", shortId(result.id)],
 					["sequence", String(result.sequence_id ?? "?")],
 					["name", result.name],
 					["priority", result.priority ?? "none"],
@@ -185,7 +189,9 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 					return;
 				}
 
-				runtime.stdout.write(`Created work item ${result.id}`);
+				runtime.stdout.write(
+					`Created work item ${result.sequence_id} (id: ${shortId(result.id)})`,
+				);
 				if (options.cycle)
 					runtime.stdout.write(` (added to cycle ${options.cycle})`);
 				if (options.module)
@@ -265,7 +271,9 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 					return;
 				}
 
-				runtime.stdout.write(`Updated work item ${result.id}`);
+				runtime.stdout.write(
+					`Updated work item ${result.sequence_id} (id: ${shortId(result.id)})`,
+				);
 				if (options.cycle)
 					runtime.stdout.write(` (added to cycle ${options.cycle})`);
 				if (options.module)

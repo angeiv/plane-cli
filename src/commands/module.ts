@@ -15,6 +15,10 @@ function collectValues(value: string, previous: string[]): string[] {
 	return [...previous, value];
 }
 
+function shortId(id: string): string {
+	return id.length > 8 ? id.slice(0, 8) : id;
+}
+
 const MODULE_STATUS_MAP: Record<string, string> = {
 	backlog: "backlog",
 	planned: "planned",
@@ -162,7 +166,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 					formatTable(
 						["FIELD", "VALUE"],
 						[
-							["id", result.id],
+							["id", shortId(result.id)],
 							["name", result.name],
 							["status", result.status ?? "none"],
 							["start_date", result.start_date ?? "-"],
@@ -237,7 +241,9 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 					return;
 				}
 
-				runtime.stdout.write(`Created module ${result.id} (${result.name})\n`);
+				runtime.stdout.write(
+					`Created module ${shortId(result.id)} (${result.name})\n`,
+				);
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;
@@ -299,7 +305,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 					return;
 				}
 
-				runtime.stdout.write(`Updated module ${result.id}\n`);
+				runtime.stdout.write(`Updated module ${shortId(result.id)}\n`);
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;
@@ -325,7 +331,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 					return;
 				}
 
-				runtime.stdout.write(`Archived module ${result.id}\n`);
+				runtime.stdout.write(`Archived module ${shortId(result.id)}\n`);
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;
@@ -378,7 +384,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 				}
 
 				runtime.stdout.write(
-					`Added ${result.length} issue(s) to module ${ref}\n`,
+					`Added ${result.length} issue(s) to module ${shortId(ref)}\n`,
 				);
 			} catch (error) {
 				writeError(runtime.stderr, error);
@@ -406,7 +412,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 				});
 
 				runtime.stdout.write(
-					`Removed ${options.issue.length} issue(s) from module ${ref}\n`,
+					`Removed ${options.issue.length} issue(s) from module ${shortId(ref)}\n`,
 				);
 			} catch (error) {
 				writeError(runtime.stderr, error);
