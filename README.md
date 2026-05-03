@@ -26,6 +26,16 @@ plane work-item comment <ref> --body <text>
 plane work-item list-comments <ref>
 plane work-item update-comment <ref> --comment-id <id> --body <text>
 plane work-item delete-comment <ref> --comment-id <id>
+# Activity/Link/Relation/Attachment
+plane work-item activity <ref> [-L 30] [--json] [--tsv] [--jq '.[] | .verb']
+plane work-item link list <ref>
+plane work-item link add <ref> --url <url> [--title <title>]
+plane work-item link remove <ref> <link-id>
+plane work-item relation list <ref>
+plane work-item relation add <ref> --type <type> --related <ref>
+plane work-item relation remove <ref> <relation-id>
+plane work-item attach list <ref>
+plane work-item attach delete <ref> <attachment-id>
 
 # Cycles
 plane cycle list
