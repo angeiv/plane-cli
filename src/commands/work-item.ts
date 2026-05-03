@@ -3,7 +3,7 @@ import { ConfigStore } from "../config/config-store.js";
 import { writeError } from "../output/errors.js";
 import { resolveFormat, writeFormatted } from "../output/format.js";
 import { writeJson } from "../output/json.js";
-import { formatTable } from "../output/table.js";
+import { formatKvView, formatTabList } from "../output/table.js";
 import type { CliRuntime } from "../runtime.js";
 import { CycleService } from "../services/cycle-service.js";
 import { ModuleService } from "../services/module-service.js";
@@ -62,20 +62,32 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 				});
 
 				const format = resolveFormat(options);
-				const headers = ["SEQ", "NAME", "PRIORITY"];
-				const rows = items.map((item) => [
-					String(item.sequence_id ?? "?"),
-					item.name,
-					item.priority ?? "none",
-				]);
-
-				writeFormatted(
-					runtime.stdout,
-					format,
-					{ headers, rows, data: { results: items } },
-					options.template,
-					options.jq,
-				);
+				if (format === "table") {
+					const headers = ["SEQ", "ID", "NAME", "PRIORITY"];
+					const rows = items.map((item) => [
+						String(item.sequence_id ?? "?"),
+						item.id.slice(0, 8),
+						item.name,
+						item.priority ?? "none",
+					]);
+					runtime.stdout.write(formatTabList(headers, rows));
+				} else {
+					const headers = ["SEQ", "ID", "SHORT_ID", "NAME", "PRIORITY"];
+					const rows = items.map((item) => [
+						String(item.sequence_id ?? "?"),
+						item.id,
+						item.id.slice(0, 8),
+						item.name,
+						item.priority ?? "none",
+					]);
+					writeFormatted(
+						runtime.stdout,
+						format,
+						{ headers, rows, data: { results: items } },
+						options.template,
+						options.jq,
+					);
+				}
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;
@@ -101,21 +113,32 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 				});
 
 				const format = resolveFormat(options);
-				const headers = ["FIELD", "VALUE"];
-				const rows = [
-					["id", shortId(result.id)],
-					["sequence", String(result.sequence_id ?? "?")],
-					["name", result.name],
-					["priority", result.priority ?? "none"],
-				];
-
-				writeFormatted(
-					runtime.stdout,
-					format,
-					{ headers, rows, data: result },
-					options.template,
-					options.jq,
-				);
+				if (format === "table") {
+					runtime.stdout.write(
+						formatKvView([
+							["id", shortId(result.id)],
+							["sequence", String(result.sequence_id ?? "?")],
+							["name", result.name],
+							["priority", result.priority ?? "none"],
+						]),
+					);
+					runtime.stdout.write("\n");
+				} else {
+					const headers = ["FIELD", "VALUE"];
+					const rows = [
+						["id", shortId(result.id)],
+						["sequence", String(result.sequence_id ?? "?")],
+						["name", result.name],
+						["priority", result.priority ?? "none"],
+					];
+					writeFormatted(
+						runtime.stdout,
+						format,
+						{ headers, rows, data: result },
+						options.template,
+						options.jq,
+					);
+				}
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;
@@ -343,7 +366,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 				}
 
 				runtime.stdout.write(
-					formatTable(
+					formatTabList(
 						["ID", "AUTHOR", "CREATED", "CONTENT"],
 						result.results.map((item) => [
 							item.id.slice(0, 8),

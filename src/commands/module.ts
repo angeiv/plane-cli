@@ -3,7 +3,7 @@ import { ConfigStore } from "../config/config-store.js";
 import { writeError } from "../output/errors.js";
 import { resolveFormat, writeFormatted } from "../output/format.js";
 import { writeJson } from "../output/json.js";
-import { formatTable } from "../output/table.js";
+import { formatKvView, formatTabList } from "../output/table.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
 
 import { MembersApi } from "../plane/members-api.js";
@@ -120,23 +120,44 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 				});
 
 				const format = resolveFormat(options);
-				const headers = ["ID", "NAME", "STATUS", "START", "TARGET", "LEAD"];
-				const rows = items.map((item) => [
-					item.id.slice(0, 8),
-					item.name,
-					item.status ?? "none",
-					item.start_date ?? "-",
-					item.target_date ?? "-",
-					item.lead ? item.lead.slice(0, 8) : "-",
-				]);
-
-				writeFormatted(
-					runtime.stdout,
-					format,
-					{ headers, rows, data: { results: items } },
-					options.template,
-					options.jq,
-				);
+				if (format === "table") {
+					const headers = ["ID", "NAME", "STATUS", "START", "TARGET", "LEAD"];
+					const rows = items.map((item) => [
+						item.id.slice(0, 8),
+						item.name,
+						item.status ?? "none",
+						item.start_date ?? "-",
+						item.target_date ?? "-",
+						item.lead ? item.lead.slice(0, 8) : "-",
+					]);
+					runtime.stdout.write(formatTabList(headers, rows));
+				} else {
+					const headers = [
+						"ID",
+						"SHORT_ID",
+						"NAME",
+						"STATUS",
+						"START",
+						"TARGET",
+						"LEAD",
+					];
+					const rows = items.map((item) => [
+						item.id,
+						item.id.slice(0, 8),
+						item.name,
+						item.status ?? "none",
+						item.start_date ?? "-",
+						item.target_date ?? "-",
+						item.lead ? item.lead.slice(0, 8) : "-",
+					]);
+					writeFormatted(
+						runtime.stdout,
+						format,
+						{ headers, rows, data: { results: items } },
+						options.template,
+						options.jq,
+					);
+				}
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;
@@ -163,24 +184,22 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 				}
 
 				runtime.stdout.write(
-					formatTable(
-						["FIELD", "VALUE"],
+					formatKvView([
+						["id", shortId(result.id)],
+						["name", result.name],
+						["status", result.status ?? "none"],
+						["start_date", result.start_date ?? "-"],
+						["target_date", result.target_date ?? "-"],
+						["lead", result.lead ?? "-"],
 						[
-							["id", shortId(result.id)],
-							["name", result.name],
-							["status", result.status ?? "none"],
-							["start_date", result.start_date ?? "-"],
-							["target_date", result.target_date ?? "-"],
-							["lead", result.lead ?? "-"],
-							[
-								"members",
-								result.members && result.members.length > 0
-									? result.members.join(", ")
-									: "-",
-							],
+							"members",
+							result.members && result.members.length > 0
+								? result.members.join(", ")
+								: "-",
 						],
-					),
+					]),
 				);
+				runtime.stdout.write("\n");
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;

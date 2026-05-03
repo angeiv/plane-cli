@@ -3,7 +3,7 @@ import { ConfigStore } from "../config/config-store.js";
 import { writeError } from "../output/errors.js";
 import { resolveFormat, writeFormatted } from "../output/format.js";
 import { writeJson } from "../output/json.js";
-import { formatTable } from "../output/table.js";
+import { formatKvView, formatTabList } from "../output/table.js";
 import type { CliRuntime } from "../runtime.js";
 import { CycleService } from "../services/cycle-service.js";
 
@@ -48,22 +48,34 @@ export function createCycleCommand(runtime: CliRuntime): Command {
 				});
 
 				const format = resolveFormat(options);
-				const headers = ["ID", "NAME", "STATUS", "START", "END"];
-				const rows = items.map((item) => [
-					item.id.slice(0, 8),
-					item.name,
-					item.status ?? "none",
-					item.start_date ?? "-",
-					item.end_date ?? "-",
-				]);
-
-				writeFormatted(
-					runtime.stdout,
-					format,
-					{ headers, rows, data: { results: items } },
-					options.template,
-					options.jq,
-				);
+				if (format === "table") {
+					const headers = ["ID", "NAME", "STATUS", "START", "END"];
+					const rows = items.map((item) => [
+						item.id.slice(0, 8),
+						item.name,
+						item.status ?? "none",
+						item.start_date ?? "-",
+						item.end_date ?? "-",
+					]);
+					runtime.stdout.write(formatTabList(headers, rows));
+				} else {
+					const headers = ["ID", "SHORT_ID", "NAME", "STATUS", "START", "END"];
+					const rows = items.map((item) => [
+						item.id,
+						item.id.slice(0, 8),
+						item.name,
+						item.status ?? "none",
+						item.start_date ?? "-",
+						item.end_date ?? "-",
+					]);
+					writeFormatted(
+						runtime.stdout,
+						format,
+						{ headers, rows, data: { results: items } },
+						options.template,
+						options.jq,
+					);
+				}
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;
@@ -90,18 +102,16 @@ export function createCycleCommand(runtime: CliRuntime): Command {
 				}
 
 				runtime.stdout.write(
-					formatTable(
-						["FIELD", "VALUE"],
-						[
-							["id", shortId(result.id)],
-							["name", result.name],
-							["status", result.status ?? "none"],
-							["start_date", result.start_date ?? "-"],
-							["end_date", result.end_date ?? "-"],
-							["owned_by", result.owned_by ?? "-"],
-						],
-					),
+					formatKvView([
+						["id", shortId(result.id)],
+						["name", result.name],
+						["status", result.status ?? "none"],
+						["start_date", result.start_date ?? "-"],
+						["end_date", result.end_date ?? "-"],
+						["owned_by", result.owned_by ?? "-"],
+					]),
 				);
+				runtime.stdout.write("\n");
 			} catch (error) {
 				writeError(runtime.stderr, error);
 				throw error;
