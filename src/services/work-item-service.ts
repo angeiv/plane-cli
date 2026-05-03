@@ -267,27 +267,76 @@ export class WorkItemService {
 		}
 
 		const sequenceId = Number(workItemRef);
+		if (Number.isInteger(sequenceId)) {
+			const match = await findByPagination(
+				(cursor) => api.list(workspaceSlug, projectId, { cursor, perPage: 50 }),
+				(item) => (item.sequence_id === sequenceId ? item : undefined),
+			);
 
-		if (!Number.isInteger(sequenceId)) {
-			throw new CliError(
-				"WORK_ITEM_NOT_FOUND",
-				`Work item ref '${workItemRef}' could not be resolved.`,
+			if (!match) {
+				throw new CliError(
+					"WORK_ITEM_NOT_FOUND",
+					`Work item '${workItemRef}' was not found in the active project.`,
+				);
+			}
+
+			return match.id;
+		}
+
+		// Short UUID prefix match (8+ hex chars, no dashes)
+		if (/^[0-9a-f]{8,}$/i.test(workItemRef)) {
+			return this.resolveWorkItemByPrefix(
+				api,
+				workItemRef,
+				workspaceSlug,
+				projectId,
 			);
 		}
 
-		const match = await findByPagination(
-			(cursor) => api.list(workspaceSlug, projectId, { cursor, perPage: 50 }),
-			(item) => (item.sequence_id === sequenceId ? item : undefined),
+		throw new CliError(
+			"WORK_ITEM_NOT_FOUND",
+			`Work item ref '${workItemRef}' could not be resolved.`,
+		);
+	}
+
+	private async resolveWorkItemByPrefix(
+		api: WorkItemsApi,
+		prefix: string,
+		workspaceSlug: string,
+		projectId: string,
+	): Promise<string> {
+		const all: { id: string }[] = [];
+		let cursor: string | undefined;
+		do {
+			const page = await api.list(workspaceSlug, projectId, {
+				cursor,
+				perPage: 50,
+			});
+			all.push(...page.results);
+			cursor = page.next_cursor ?? undefined;
+			if (!page.next_page_results) break;
+		} while (cursor);
+
+		const matches = all.filter((item) =>
+			item.id.toLowerCase().startsWith(prefix.toLowerCase()),
 		);
 
-		if (!match) {
+		if (matches.length === 0) {
 			throw new CliError(
 				"WORK_ITEM_NOT_FOUND",
-				`Work item '${workItemRef}' was not found in the active project.`,
+				`Work item '${prefix}' was not found in the active project.`,
 			);
 		}
 
-		return match.id;
+		if (matches.length > 1) {
+			const ids = matches.map((m) => m.id.slice(0, 8)).join(", ");
+			throw new CliError(
+				"WORK_ITEM_AMBIGUOUS",
+				`Prefix '${prefix}' matches multiple work items: ${ids}. Use a longer prefix or the full UUID.`,
+			);
+		}
+
+		return matches[0].id;
 	}
 
 	private async buildMutationPayload(
@@ -471,27 +520,48 @@ export class WorkItemService {
 		const workItemsApi = new WorkItemsApi(client);
 		const sequenceId = Number(parentRef);
 
-		if (!Number.isInteger(sequenceId)) {
-			throw new CliError(
-				"WORK_ITEM_NOT_FOUND",
-				`Parent work item ref '${parentRef}' could not be resolved.`,
+		if (Number.isInteger(sequenceId)) {
+			const workItems = await workItemsApi.list(workspaceSlug, projectId, {
+				perPage: 100,
+			});
+			const match = workItems.results.find(
+				(item) => item.sequence_id === sequenceId,
 			);
+
+			if (!match) {
+				throw new CliError(
+					"WORK_ITEM_NOT_FOUND",
+					`Parent work item '${parentRef}' was not found in the active project.`,
+				);
+			}
+
+			return match.id;
 		}
 
-		const workItems = await workItemsApi.list(workspaceSlug, projectId, {
-			perPage: 100,
-		});
-		const match = workItems.results.find(
-			(item) => item.sequence_id === sequenceId,
+		// Short UUID prefix match
+		if (/^[0-9a-f]{8,}$/i.test(parentRef)) {
+			const match = await findByPagination(
+				(cursor) =>
+					workItemsApi.list(workspaceSlug, projectId, { cursor, perPage: 50 }),
+				(item) =>
+					item.id.toLowerCase().startsWith(parentRef.toLowerCase())
+						? item
+						: undefined,
+			);
+
+			if (!match) {
+				throw new CliError(
+					"WORK_ITEM_NOT_FOUND",
+					`Parent work item '${parentRef}' was not found in the active project.`,
+				);
+			}
+
+			return match.id;
+		}
+
+		throw new CliError(
+			"WORK_ITEM_NOT_FOUND",
+			`Parent work item ref '${parentRef}' could not be resolved.`,
 		);
-
-		if (!match) {
-			throw new CliError(
-				"WORK_ITEM_NOT_FOUND",
-				`Parent work item '${parentRef}' was not found in the active project.`,
-			);
-		}
-
-		return match.id;
 	}
 }

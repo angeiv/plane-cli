@@ -2,7 +2,7 @@ import type { ConfigStore } from "../config/config-store.js";
 import { CliError } from "../plane/errors.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
 import { ModulesApi, type UpdateModulePayload } from "../plane/modules-api.js";
-import type { PlaneModule } from "../plane/types.js";
+import type { PaginatedResponse, PlaneModule } from "../plane/types.js";
 
 import { ContextService } from "./context-service.js";
 import { collectUpToLimit, findByPagination } from "./pagination.js";
@@ -236,6 +236,19 @@ export class ModuleService {
 			return moduleRef;
 		}
 
+		// Short UUID prefix match (8+ hex chars, no dashes)
+		if (/^[0-9a-f]{8,}$/i.test(moduleRef)) {
+			return this.resolveByPrefix(
+				api,
+				moduleRef,
+				workspaceSlug,
+				projectId,
+				"module",
+				"MODULE_NOT_FOUND",
+				"MODULE_AMBIGUOUS",
+			);
+		}
+
 		const match = await findByPagination(
 			(cursor) => api.list(workspaceSlug, projectId, { cursor, perPage: 50 }),
 			(item) =>
@@ -271,6 +284,19 @@ export class ModuleService {
 					return ref;
 				}
 
+				// Short UUID prefix match (8+ hex chars, no dashes)
+				if (/^[0-9a-f]{8,}$/i.test(ref)) {
+					return this.resolveByPrefix(
+						workItemsApi,
+						ref,
+						workspaceSlug,
+						projectId,
+						"work item",
+						"WORK_ITEM_NOT_FOUND",
+						"WORK_ITEM_AMBIGUOUS",
+					);
+				}
+
 				const sequenceId = Number(ref);
 				if (!Number.isInteger(sequenceId)) {
 					throw new CliError(
@@ -298,5 +324,54 @@ export class ModuleService {
 				return match.id;
 			}),
 		);
+	}
+
+	private async resolveByPrefix<T extends { id: string; name?: string }>(
+		api: {
+			list: (
+				ws: string,
+				pid: string,
+				p: { cursor?: string; perPage: number },
+			) => Promise<PaginatedResponse<T>>;
+		},
+		prefix: string,
+		workspaceSlug: string,
+		projectId: string,
+		singular: string,
+		notFoundCode: string,
+		ambiguousCode: string,
+	): Promise<string> {
+		const all: T[] = [];
+		let cursor: string | undefined;
+		do {
+			const page = await api.list(workspaceSlug, projectId, {
+				cursor,
+				perPage: 50,
+			});
+			all.push(...page.results);
+			cursor = page.next_cursor ?? undefined;
+			if (!page.next_page_results) break;
+		} while (cursor);
+
+		const matches = all.filter((item) =>
+			item.id.toLowerCase().startsWith(prefix.toLowerCase()),
+		);
+
+		if (matches.length === 0) {
+			throw new CliError(
+				notFoundCode,
+				`${singular.charAt(0).toUpperCase() + singular.slice(1)} '${prefix}' was not found in the active project.`,
+			);
+		}
+
+		if (matches.length > 1) {
+			const ids = matches.map((m) => m.id.slice(0, 8)).join(", ");
+			throw new CliError(
+				ambiguousCode,
+				`Prefix '${prefix}' matches multiple ${singular}s: ${ids}. Use a longer prefix or the full UUID.`,
+			);
+		}
+
+		return matches[0].id;
 	}
 }
