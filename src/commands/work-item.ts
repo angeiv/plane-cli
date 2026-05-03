@@ -117,6 +117,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 					runtime.stdout.write(
 						formatKvView([
 							["id", shortId(result.id)],
+							["full_id", result.id],
 							["sequence", String(result.sequence_id ?? "?")],
 							["name", result.name],
 							["priority", result.priority ?? "none"],
@@ -127,6 +128,7 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 					const headers = ["FIELD", "VALUE"];
 					const rows = [
 						["id", shortId(result.id)],
+						["full_id", result.id],
 						["sequence", String(result.sequence_id ?? "?")],
 						["name", result.name],
 						["priority", result.priority ?? "none"],

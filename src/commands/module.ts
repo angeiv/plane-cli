@@ -186,6 +186,7 @@ export function createModuleCommand(runtime: CliRuntime): Command {
 				runtime.stdout.write(
 					formatKvView([
 						["id", shortId(result.id)],
+						["full_id", result.id],
 						["name", result.name],
 						["status", result.status ?? "none"],
 						["start_date", result.start_date ?? "-"],
