@@ -1,6 +1,16 @@
 import type { PlaneHttpClient } from "./http-client.js";
 import type { PaginatedResponse, PlaneCycle } from "./types.js";
 
+export interface PlaneCycleIssue {
+	id: string;
+	issue: string;
+	cycle: string;
+	project: string;
+	workspace: string;
+	created_at: string;
+	updated_at: string;
+}
+
 export interface ListCyclesParams {
 	cursor?: string;
 	perPage?: number;
@@ -125,18 +135,46 @@ export class CyclesApi {
 		);
 	}
 
+	async listCycleIssues(
+		workspaceSlug: string,
+		projectId: string,
+		cycleId: string,
+	): Promise<PlaneCycleIssue[]> {
+		const all: PlaneCycleIssue[] = [];
+		let cursor: string | undefined;
+		do {
+			const query = new URLSearchParams();
+			query.set("per_page", "50");
+			if (cursor) query.set("cursor", cursor);
+			const page = await this.client.requestJson<
+				PaginatedResponse<PlaneCycleIssue>
+			>(
+				`/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/cycles/${cycleId}/cycle-issues/?${query.toString()}`,
+			);
+			all.push(...page.results);
+			cursor = page.next_cursor ?? undefined;
+			if (!page.next_page_results) break;
+		} while (cursor);
+		return all;
+	}
+
 	async removeIssues(
 		workspaceSlug: string,
 		projectId: string,
 		cycleId: string,
 		issueIds: string[],
 	): Promise<void> {
-		await this.client.requestJson<null>(
-			`/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/cycles/${cycleId}/remove-issues/`,
-			{
-				body: JSON.stringify({ issues: issueIds }),
-				method: "POST",
-			},
+		const cycleIssues = await this.listCycleIssues(
+			workspaceSlug,
+			projectId,
+			cycleId,
 		);
+		const toRemove = cycleIssues.filter((ci) => issueIds.includes(ci.issue));
+		for (const ci of toRemove) {
+			await this.client.requestJson<null>(
+				`/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/cycles/${cycleId}/cycle-issues/${ci.id}/`,
+				{ method: "DELETE" },
+			);
+		}
 	}
 }

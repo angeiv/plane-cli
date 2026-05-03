@@ -4,6 +4,7 @@ import { writeError } from "../output/errors.js";
 import { resolveFormat, writeFormatted } from "../output/format.js";
 import { writeJson } from "../output/json.js";
 import { formatTable } from "../output/table.js";
+import type { RelationType } from "../plane/relations-api.js";
 import type { CliRuntime } from "../runtime.js";
 import { CycleService } from "../services/cycle-service.js";
 import { ModuleService } from "../services/module-service.js";
@@ -427,6 +428,311 @@ export function createWorkItemCommand(runtime: CliRuntime): Command {
 				throw error;
 			}
 		});
+
+	// ===== Activity =====
+	workItem
+		.command("activity")
+		.description("List activity history for a work item")
+		.argument("<ref>", "Work-item UUID or numeric sequence")
+		.option(
+			"-L, --limit <number>",
+			"Maximum number of items to fetch (0 for all)",
+			"30",
+		)
+		.option("--workspace <slug>", "Override workspace slug")
+		.option("--project <id-or-key>", "Override project UUID or key")
+		.option("--json", "Print JSON output")
+		.option("--tsv", "Print TSV output")
+		.option("--format <fmt>", "Output format: table/json/tsv/template/jq")
+		.option("--template <expr>", "Go template expression")
+		.option("--jq <expr>", "JQ expression")
+		.action(async (ref: string, options) => {
+			try {
+				const activities = await workItems.listActivities(ref, {
+					projectRef: options.project,
+					workspaceSlug: options.workspace,
+				});
+				const limit = Number(options.limit);
+				const items = limit > 0 ? activities.slice(0, limit) : activities;
+
+				const format = resolveFormat(options);
+				const headers = ["VERB", "FIELD", "OLD", "NEW", "ACTOR", "DATE"];
+				const rows = items.map((a) => [
+					a.verb,
+					a.field ?? "-",
+					(a.old_value ?? "-").slice(0, 30),
+					(a.new_value ?? "-").slice(0, 30),
+					a.actor.slice(0, 8),
+					a.created_at.slice(0, 16),
+				]);
+
+				writeFormatted(
+					runtime.stdout,
+					format,
+					{ headers, rows, data: { results: items } },
+					options.template,
+					options.jq,
+				);
+			} catch (error) {
+				writeError(runtime.stderr, error);
+				throw error;
+			}
+		});
+
+	// ===== Link =====
+	workItem
+		.command("link")
+		.description("Manage links on a work item")
+		.addCommand(
+			new Command("list")
+				.description("List links on a work item")
+				.argument("<ref>", "Work-item UUID or numeric sequence")
+				.option("--workspace <slug>", "Override workspace slug")
+				.option("--project <id-or-key>", "Override project UUID or key")
+				.option("--json", "Print JSON output")
+				.action(async (ref: string, options) => {
+					try {
+						const links = await workItems.listLinks(ref, {
+							projectRef: options.project,
+							workspaceSlug: options.workspace,
+						});
+						if (options.json) {
+							writeJson(runtime.stdout, { results: links });
+							return;
+						}
+						runtime.stdout.write(
+							formatTable(
+								["ID", "TITLE", "URL"],
+								links.map((l) => [
+									l.id.slice(0, 8),
+									l.title,
+									l.url.slice(0, 60),
+								]),
+							),
+						);
+					} catch (error) {
+						writeError(runtime.stderr, error);
+						throw error;
+					}
+				}),
+		)
+		.addCommand(
+			new Command("add")
+				.description("Add a link to a work item")
+				.argument("<ref>", "Work-item UUID or numeric sequence")
+				.requiredOption("--url <url>", "Link URL")
+				.option("--title <title>", "Link title")
+				.option("--workspace <slug>", "Override workspace slug")
+				.option("--project <id-or-key>", "Override project UUID or key")
+				.option("--json", "Print JSON output")
+				.action(async (ref: string, options) => {
+					try {
+						const result = await workItems.addLink(
+							ref,
+							options.url,
+							options.title,
+							{
+								projectRef: options.project,
+								workspaceSlug: options.workspace,
+							},
+						);
+						if (options.json) {
+							writeJson(runtime.stdout, result);
+							return;
+						}
+						runtime.stdout.write(`Added link ${result.id} (${result.title})\n`);
+					} catch (error) {
+						writeError(runtime.stderr, error);
+						throw error;
+					}
+				}),
+		)
+		.addCommand(
+			new Command("remove")
+				.description("Remove a link from a work item")
+				.argument("<ref>", "Work-item UUID or numeric sequence")
+				.argument("<link-id>", "Link UUID")
+				.option("--workspace <slug>", "Override workspace slug")
+				.option("--project <id-or-key>", "Override project UUID or key")
+				.action(async (ref: string, linkId: string, options) => {
+					try {
+						await workItems.removeLink(ref, linkId, {
+							projectRef: options.project,
+							workspaceSlug: options.workspace,
+						});
+						runtime.stdout.write(`Removed link ${linkId}\n`);
+					} catch (error) {
+						writeError(runtime.stderr, error);
+						throw error;
+					}
+				}),
+		);
+
+	// ===== Relation =====
+	const RELATION_TYPES = [
+		"blocking",
+		"blocked_by",
+		"duplicate",
+		"relates_to",
+		"start_after",
+		"start_before",
+		"finish_after",
+		"finish_before",
+	] as const;
+
+	workItem
+		.command("relation")
+		.description("Manage relations between work items")
+		.addCommand(
+			new Command("list")
+				.description("List relations on a work item")
+				.argument("<ref>", "Work-item UUID or numeric sequence")
+				.option("--workspace <slug>", "Override workspace slug")
+				.option("--project <id-or-key>", "Override project UUID or key")
+				.option("--json", "Print JSON output")
+				.action(async (ref: string, options) => {
+					try {
+						const grouped = await workItems.listRelations(ref, {
+							projectRef: options.project,
+							workspaceSlug: options.workspace,
+						});
+						if (options.json) {
+							writeJson(runtime.stdout, grouped);
+							return;
+						}
+						const rows: string[][] = [];
+						for (const [type, relations] of Object.entries(grouped)) {
+							for (const r of relations) {
+								rows.push([
+									type,
+									r.id.slice(0, 8),
+									r.related_issue.slice(0, 8),
+								]);
+							}
+						}
+						runtime.stdout.write(formatTable(["TYPE", "ID", "RELATED"], rows));
+					} catch (error) {
+						writeError(runtime.stderr, error);
+						throw error;
+					}
+				}),
+		)
+		.addCommand(
+			new Command("add")
+				.description("Add a relation between work items")
+				.argument("<ref>", "Work-item UUID or numeric sequence")
+				.requiredOption(
+					"--type <type>",
+					`Relation type: ${RELATION_TYPES.join("/")}`,
+				)
+				.requiredOption("--related <ref>", "Related work item UUID or sequence")
+				.option("--workspace <slug>", "Override workspace slug")
+				.option("--project <id-or-key>", "Override project UUID or key")
+				.option("--json", "Print JSON output")
+				.action(async (ref: string, options) => {
+					try {
+						const result = await workItems.addRelation(
+							ref,
+							options.type as RelationType,
+							options.related,
+							{
+								projectRef: options.project,
+								workspaceSlug: options.workspace,
+							},
+						);
+						if (options.json) {
+							writeJson(runtime.stdout, result);
+							return;
+						}
+						runtime.stdout.write(
+							`Added relation ${options.type} → ${options.related}\n`,
+						);
+					} catch (error) {
+						writeError(runtime.stderr, error);
+						throw error;
+					}
+				}),
+		)
+		.addCommand(
+			new Command("remove")
+				.description("Remove a relation")
+				.argument("<ref>", "Work-item UUID or numeric sequence")
+				.argument("<relation-id>", "Relation UUID")
+				.option("--workspace <slug>", "Override workspace slug")
+				.option("--project <id-or-key>", "Override project UUID or key")
+				.action(async (ref: string, relationId: string, options) => {
+					try {
+						await workItems.removeRelation(ref, relationId, {
+							projectRef: options.project,
+							workspaceSlug: options.workspace,
+						});
+						runtime.stdout.write(`Removed relation ${relationId}\n`);
+					} catch (error) {
+						writeError(runtime.stderr, error);
+						throw error;
+					}
+				}),
+		);
+
+	// ===== Attach =====
+	workItem
+		.command("attach")
+		.description("Manage attachments on a work item")
+		.addCommand(
+			new Command("list")
+				.description("List attachments on a work item")
+				.argument("<ref>", "Work-item UUID or numeric sequence")
+				.option("--workspace <slug>", "Override workspace slug")
+				.option("--project <id-or-key>", "Override project UUID or key")
+				.option("--json", "Print JSON output")
+				.action(async (ref: string, options) => {
+					try {
+						const attachments = await workItems.listAttachments(ref, {
+							projectRef: options.project,
+							workspaceSlug: options.workspace,
+						});
+						if (options.json) {
+							writeJson(runtime.stdout, { results: attachments });
+							return;
+						}
+						runtime.stdout.write(
+							formatTable(
+								["ID", "NAME", "SIZE", "TYPE", "CREATED"],
+								attachments.map((a) => [
+									a.id.slice(0, 8),
+									a.name,
+									String(a.size),
+									a.type,
+									a.created_at.slice(0, 16),
+								]),
+							),
+						);
+					} catch (error) {
+						writeError(runtime.stderr, error);
+						throw error;
+					}
+				}),
+		)
+		.addCommand(
+			new Command("delete")
+				.description("Delete an attachment")
+				.argument("<ref>", "Work-item UUID or numeric sequence")
+				.argument("<attachment-id>", "Attachment UUID")
+				.option("--workspace <slug>", "Override workspace slug")
+				.option("--project <id-or-key>", "Override project UUID or key")
+				.action(async (ref: string, attachmentId: string, options) => {
+					try {
+						await workItems.deleteAttachment(ref, attachmentId, {
+							projectRef: options.project,
+							workspaceSlug: options.workspace,
+						});
+						runtime.stdout.write(`Deleted attachment ${attachmentId}\n`);
+					} catch (error) {
+						writeError(runtime.stderr, error);
+						throw error;
+					}
+				}),
+		);
 
 	return workItem;
 }

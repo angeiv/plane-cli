@@ -1,9 +1,16 @@
 import type { ConfigStore } from "../config/config-store.js";
+import { ActivitiesApi, type PlaneActivity } from "../plane/activities-api.js";
+import {
+	AttachmentsApi,
+	type PlaneAttachment,
+} from "../plane/attachments-api.js";
 import { CommentsApi, type ListCommentsParams } from "../plane/comments-api.js";
 import { CliError } from "../plane/errors.js";
 import { PlaneHttpClient } from "../plane/http-client.js";
 import { LabelsApi } from "../plane/labels-api.js";
+import { LinksApi, type PlaneLink } from "../plane/links-api.js";
 import { MembersApi } from "../plane/members-api.js";
+import { RelationsApi, type RelationType } from "../plane/relations-api.js";
 import { StatesApi } from "../plane/states-api.js";
 import type {
 	PaginatedResponse,
@@ -216,6 +223,198 @@ export class WorkItemService {
 		const commentsApi = new CommentsApi(client);
 
 		return commentsApi.delete(workspaceSlug, projectId, workItemId, commentId);
+	}
+
+	async listActivities(
+		workItemRef: string,
+		overrides: WorkItemContextOverrides = {},
+	): Promise<PlaneActivity[]> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const activitiesApi = new ActivitiesApi(client);
+		const all: PlaneActivity[] = [];
+		let cursor: string | undefined;
+		do {
+			const page = await activitiesApi.list(
+				workspaceSlug,
+				projectId,
+				workItemId,
+				{ cursor, perPage: 50 },
+			);
+			all.push(...page.results);
+			cursor = page.next_cursor ?? undefined;
+			if (!page.next_page_results) break;
+		} while (cursor);
+		return all;
+	}
+
+	async listLinks(
+		workItemRef: string,
+		overrides: WorkItemContextOverrides = {},
+	): Promise<PlaneLink[]> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const linksApi = new LinksApi(client);
+		const result = await linksApi.list(workspaceSlug, projectId, workItemId);
+		return result.results;
+	}
+
+	async addLink(
+		workItemRef: string,
+		url: string,
+		title?: string,
+		overrides: WorkItemContextOverrides = {},
+	): Promise<PlaneLink> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const linksApi = new LinksApi(client);
+		return linksApi.create(workspaceSlug, projectId, workItemId, {
+			url,
+			title: title ?? url,
+		});
+	}
+
+	async removeLink(
+		workItemRef: string,
+		linkId: string,
+		overrides: WorkItemContextOverrides = {},
+	): Promise<void> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const linksApi = new LinksApi(client);
+		return linksApi.delete(workspaceSlug, projectId, workItemId, linkId);
+	}
+
+	async listRelations(
+		workItemRef: string,
+		overrides: WorkItemContextOverrides = {},
+	) {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const relationsApi = new RelationsApi(client);
+		return relationsApi.list(workspaceSlug, projectId, workItemId);
+	}
+
+	async addRelation(
+		workItemRef: string,
+		relationType: RelationType,
+		relatedIssueRef: string,
+		overrides: WorkItemContextOverrides = {},
+	): Promise<import("../plane/relations-api.js").PlaneRelation> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const relatedIssueId = await this.resolveWorkItemRef(
+			api,
+			relatedIssueRef,
+			workspaceSlug,
+			projectId,
+		);
+		const relationsApi = new RelationsApi(client);
+		return relationsApi.create(workspaceSlug, projectId, workItemId, {
+			relation_type: relationType,
+			related_issue: relatedIssueId,
+		});
+	}
+
+	async removeRelation(
+		workItemRef: string,
+		relationId: string,
+		overrides: WorkItemContextOverrides = {},
+	): Promise<void> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const relationsApi = new RelationsApi(client);
+		return relationsApi.delete(
+			workspaceSlug,
+			projectId,
+			workItemId,
+			relationId,
+		);
+	}
+
+	async listAttachments(
+		workItemRef: string,
+		overrides: WorkItemContextOverrides = {},
+	): Promise<PlaneAttachment[]> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const attachmentsApi = new AttachmentsApi(client);
+		const result = await attachmentsApi.list(
+			workspaceSlug,
+			projectId,
+			workItemId,
+		);
+		return result.results;
+	}
+
+	async deleteAttachment(
+		workItemRef: string,
+		attachmentId: string,
+		overrides: WorkItemContextOverrides = {},
+	): Promise<void> {
+		const { api, client, workspaceSlug, projectId } =
+			await this.resolveContext(overrides);
+		const workItemId = await this.resolveWorkItemRef(
+			api,
+			workItemRef,
+			workspaceSlug,
+			projectId,
+		);
+		const attachmentsApi = new AttachmentsApi(client);
+		return attachmentsApi.delete(
+			workspaceSlug,
+			projectId,
+			workItemId,
+			attachmentId,
+		);
 	}
 
 	private async resolveContext(overrides: WorkItemContextOverrides): Promise<{
